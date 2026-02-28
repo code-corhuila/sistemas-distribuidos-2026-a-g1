@@ -1,0 +1,75 @@
+@startuml
+title Airline System - Logical Deployment Diagram
+
+skinparam shadowing false
+
+node "Client Layer" {
+  artifact "Guest Customer" as guest
+  artifact "Registered Customer" as registered
+  artifact "Internal Operator" as operator
+}
+
+node "Access Layer" {
+  component "Web Portal" as web
+  component "Mobile App" as mobile
+  component "Backoffice Console" as backoffice
+  component "API Gateway" as gateway
+}
+
+node "Application Layer" {
+  component "Identity Service" as svc_identity
+  component "Security Service" as svc_security
+  component "Airline Service" as svc_airline
+  component "Customer Service" as svc_customer
+  component "Aircraft Service" as svc_aircraft
+  component "Geolocation Service" as svc_geo
+  component "Airport Service" as svc_airport
+  component "Flight Service" as svc_flight
+  component "Sales Service" as svc_sales
+  component "Boarding Service" as svc_boarding
+  component "Payment Service" as svc_payment
+  component "Billing Service" as svc_billing
+}
+
+database "PostgreSQL 15+ Airline DB" as db
+
+cloud "External Payment Processor\n(inferred)" as ext_pay
+
+guest --> web
+registered --> web
+registered --> mobile
+operator --> backoffice
+
+web --> gateway
+mobile --> gateway
+backoffice --> gateway
+
+gateway --> svc_identity
+gateway --> svc_security
+gateway --> svc_airline
+gateway --> svc_customer
+gateway --> svc_aircraft
+gateway --> svc_geo
+gateway --> svc_airport
+gateway --> svc_flight
+gateway --> svc_sales
+gateway --> svc_boarding
+gateway --> svc_payment
+gateway --> svc_billing
+
+svc_identity --> db
+svc_security --> db
+svc_airline --> db
+svc_customer --> db
+svc_aircraft --> db
+svc_geo --> db
+svc_airport --> db
+svc_flight --> db
+svc_sales --> db
+svc_boarding --> db
+svc_payment --> db
+svc_billing --> db
+
+svc_payment --> ext_pay : authorize/capture/void/refund
+
+@enduml
