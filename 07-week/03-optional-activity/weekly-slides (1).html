@@ -1,0 +1,898 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Weekly Report — Gestión de Citas</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&family=Instrument+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+
+:root {
+  --bg:     #0a0a0f;
+  --surf:   #111118;
+  --border: rgba(255,255,255,0.07);
+  --bordsm: rgba(255,255,255,0.13);
+  --text:   #e8e6f0;
+  --muted:  #4a4860;
+
+  --green:  #00e5a0;
+  --gbg:    rgba(0,229,160,0.06);
+  --gbrd:   rgba(0,229,160,0.2);
+
+  --amber:  #ffb444;
+  --abg:    rgba(255,180,68,0.06);
+  --abrd:   rgba(255,180,68,0.2);
+
+  --blue:   #4d9fff;
+  --bbg:    rgba(77,159,255,0.06);
+  --bbrd:   rgba(77,159,255,0.2);
+
+  --purple: #b794ff;
+  --pbg:    rgba(183,148,255,0.08);
+  --pbrd:   rgba(183,148,255,0.25);
+
+  --red:    #ff6b6b;
+  --rbg:    rgba(255,107,107,0.07);
+  --rbrd:   rgba(255,107,107,0.2);
+}
+
+html, body {
+  width:100%; min-height:100vh;
+  overflow-x:hidden;
+}
+
+body {
+  font-family: 'Instrument Sans', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  user-select: none;
+  display:flex;
+  justify-content:center;
+  align-items:flex-start;
+  padding: 32px 20px 100px;
+}
+
+/* ── AMBIENT ── */
+.g1 {
+  position:fixed; width:700px; height:700px; border-radius:50%;
+  background:radial-gradient(circle, rgba(0,229,160,0.04) 0%, transparent 70%);
+  top:-250px; right:-150px; pointer-events:none; z-index:0;
+}
+.g2 {
+  position:fixed; width:600px; height:600px; border-radius:50%;
+  background:radial-gradient(circle, rgba(183,148,255,0.05) 0%, transparent 70%);
+  bottom:-200px; left:-150px; pointer-events:none; z-index:0;
+}
+
+/* ── SLIDE ENGINE ── */
+.deck {
+  position:relative;
+  width:100%;
+  max-width:900px;
+}
+
+.slide {
+  display:none;
+  flex-direction:column;
+  border:1px solid var(--bordsm);
+  border-radius:20px;
+  overflow:hidden;
+  animation: slideIn 0.4s cubic-bezier(.22,1,.36,1) both;
+}
+.slide.active { display:flex; }
+
+@keyframes slideIn {
+  from { opacity:0; transform:translateY(18px); }
+  to   { opacity:1; transform:translateY(0); }
+}
+
+.slide-inner {
+  position:relative; z-index:2;
+  padding: 44px 52px;
+  display:flex; flex-direction:column;
+  gap:0;
+}
+
+/* ── NAV ── */
+.nav {
+  position:fixed; bottom:28px; left:50%; transform:translateX(-50%);
+  z-index:100;
+  display:flex; align-items:center; gap:12px;
+  background:rgba(10,10,15,0.92); backdrop-filter:blur(20px);
+  border:1px solid var(--bordsm); border-radius:50px;
+  padding:9px 18px;
+  box-shadow:0 8px 32px rgba(0,0,0,0.5);
+}
+
+.nav-btn {
+  width:34px; height:34px; border-radius:50%;
+  background:rgba(255,255,255,0.04); border:1px solid var(--border);
+  color:var(--muted); cursor:pointer; font-size:14px;
+  display:flex; align-items:center; justify-content:center;
+  transition:all 0.15s;
+}
+.nav-btn:hover { background:rgba(255,255,255,0.1); color:#fff; }
+
+.dots { display:flex; gap:6px; align-items:center; }
+.dot {
+  width:6px; height:6px; border-radius:50%;
+  background:rgba(255,255,255,0.15); cursor:pointer; transition:all 0.22s;
+}
+.dot.active { background:var(--purple); width:20px; border-radius:3px; }
+
+.counter {
+  font-family:'IBM Plex Mono',monospace;
+  font-size:10px; font-weight:500; color:var(--muted);
+  min-width:30px; text-align:center;
+}
+
+/* ── SHARED COMPONENTS ── */
+.tag {
+  display:inline-flex; align-items:center; gap:7px;
+  font-family:'IBM Plex Mono',monospace;
+  font-size:9.5px; font-weight:500; letter-spacing:2px; text-transform:uppercase;
+  padding:5px 12px; border-radius:4px; width:fit-content;
+}
+
+.tag-dot { width:5px; height:5px; border-radius:50%; animation:pulse 2s ease infinite; }
+@keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:0.3;} }
+
+.slide-num {
+  font-family:'IBM Plex Mono',monospace;
+  font-size:9.5px; font-weight:600; letter-spacing:2px; text-transform:uppercase;
+  color:var(--muted);
+  display:flex; align-items:center; gap:10px;
+  margin-bottom:20px;
+}
+.slide-num::after { content:''; flex:1; height:1px; background:var(--border); }
+
+.slide-title {
+  font-family:'Syne',sans-serif;
+  font-size:clamp(32px,4vw,52px);
+  font-weight:800; letter-spacing:-2.5px; line-height:0.95;
+  color:#fff; margin-bottom:10px;
+}
+.slide-title span { color:var(--purple); font-style:italic; }
+
+.slide-sub {
+  font-family:'IBM Plex Mono',monospace;
+  font-size:11px; color:var(--muted); margin-bottom:32px;
+}
+
+/* ── TEAM PILLS ── */
+.team-pills { display:flex; gap:6px; }
+.tp {
+  font-family:'Syne',sans-serif; font-size:11px; font-weight:700;
+  width:34px; height:34px; border-radius:8px;
+  display:flex; align-items:center; justify-content:center;
+}
+.tp1 { background:rgba(77,159,255,0.12); color:var(--blue); border:1px solid rgba(77,159,255,0.25); }
+.tp2 { background:rgba(0,229,160,0.1); color:var(--green); border:1px solid rgba(0,229,160,0.22); }
+.tp3 { background:rgba(183,148,255,0.1); color:var(--purple); border:1px solid rgba(183,148,255,0.22); }
+.tp4 { background:rgba(255,180,68,0.1); color:var(--amber); border:1px solid rgba(255,180,68,0.22); }
+
+/* ── ITEM LIST ── */
+.item-list { display:flex; flex-direction:column; gap:9px; }
+.item { display:flex; gap:10px; align-items:flex-start; font-size:12.5px; line-height:1.55; color:rgba(232,230,240,0.8); }
+.bullet { width:5px; height:5px; border-radius:50%; flex-shrink:0; margin-top:6px; }
+.item strong { font-weight:600; }
+.item code {
+  font-family:'IBM Plex Mono',monospace; font-size:10.5px;
+  padding:1px 5px; border-radius:3px;
+}
+
+/* ── SPRINT COL ── */
+.sprint-col {
+  border-radius:14px; padding:22px 24px;
+  display:flex; flex-direction:column; gap:0;
+  position:relative; overflow:hidden;
+}
+.sprint-col::before {
+  content:''; position:absolute; top:0; left:0; right:0; height:2px;
+}
+.sc-green { background:var(--gbg); border:1px solid var(--gbrd); }
+.sc-green::before { background:var(--green); }
+.sc-amber { background:var(--abg); border:1px solid var(--abrd); }
+.sc-amber::before { background:var(--amber); }
+.sc-blue  { background:var(--bbg); border:1px solid var(--bbrd); }
+.sc-blue::before  { background:var(--blue); }
+
+.col-head {
+  display:flex; align-items:center; gap:10px;
+  margin-bottom:16px; padding-bottom:14px;
+}
+.sc-green .col-head { border-bottom:1px solid rgba(0,229,160,0.12); }
+.sc-amber .col-head { border-bottom:1px solid rgba(255,180,68,0.12); }
+.sc-blue  .col-head { border-bottom:1px solid rgba(77,159,255,0.12); }
+
+.col-icon {
+  font-size:15px; width:32px; height:32px; border-radius:9px;
+  display:flex; align-items:center; justify-content:center;
+}
+.sc-green .col-icon { background:rgba(0,229,160,0.1); }
+.sc-amber .col-icon { background:rgba(255,180,68,0.1); }
+.sc-blue  .col-icon { background:rgba(77,159,255,0.1); }
+
+.col-title {
+  font-family:'Syne',sans-serif; font-size:11px; font-weight:700;
+  letter-spacing:0.5px; text-transform:uppercase;
+}
+.sc-green .col-title { color:var(--green); }
+.sc-amber .col-title { color:var(--amber); }
+.sc-blue  .col-title { color:var(--blue); }
+
+.sc-green .bullet { background:var(--green); }
+.sc-amber .bullet { background:var(--amber); }
+.sc-blue  .bullet { background:var(--blue); }
+.sc-green .item strong { color:var(--green); }
+.sc-amber .item strong { color:var(--amber); }
+.sc-blue  .item strong { color:var(--blue); }
+.sc-green .item code { background:rgba(0,229,160,0.08); color:var(--green); }
+.sc-amber .item code { background:rgba(255,180,68,0.08); color:var(--amber); }
+.sc-blue  .item code  { background:rgba(77,159,255,0.08); color:var(--blue); }
+
+/* ── PARTICIPATION ── */
+.part-bar {
+  display:flex; align-items:center; gap:28px;
+  background:var(--surf); border:1px solid var(--bordsm);
+  border-radius:12px; padding:16px 24px;
+}
+.part-lbl {
+  font-family:'IBM Plex Mono',monospace; font-size:9px;
+  letter-spacing:2px; text-transform:uppercase; color:var(--muted);
+  white-space:nowrap; line-height:1.5;
+}
+.part-members { display:flex; gap:0; flex:1; }
+.part-member {
+  flex:1; display:flex; flex-direction:column; align-items:center; gap:6px;
+  padding:0 16px; border-right:1px solid var(--border);
+}
+.part-member:last-child { border-right:none; }
+.part-av {
+  font-family:'Syne',sans-serif; font-size:12px; font-weight:800;
+  width:38px; height:38px; border-radius:9px;
+  display:flex; align-items:center; justify-content:center;
+}
+.av1 { background:rgba(77,159,255,0.1); color:var(--blue); border:1.5px solid rgba(77,159,255,0.25); }
+.av2 { background:rgba(0,229,160,0.08); color:var(--green); border:1.5px solid rgba(0,229,160,0.2); }
+.av3 { background:rgba(183,148,255,0.1); color:var(--purple); border:1.5px solid rgba(183,148,255,0.22); }
+.av4 { background:rgba(255,180,68,0.08); color:var(--amber); border:1.5px solid rgba(255,180,68,0.2); }
+.part-pct {
+  font-family:'Syne',sans-serif; font-size:20px; font-weight:800; color:#fff; line-height:1;
+}
+.part-role {
+  font-size:9.5px; color:var(--muted); font-family:'IBM Plex Mono',monospace;
+  text-align:center; line-height:1.4;
+}
+
+/* ── ADR PROCESS STEPS ── */
+.step-row {
+  display:flex; align-items:flex-start; gap:14px;
+  padding:11px 0; border-bottom:1px solid var(--border);
+}
+.step-row:last-child { border-bottom:none; }
+.step-n {
+  font-family:'IBM Plex Mono',monospace; font-size:9.5px; font-weight:600; color:var(--purple);
+  background:rgba(183,148,255,0.1); border:1px solid rgba(183,148,255,0.18);
+  width:24px; height:24px; border-radius:6px; flex-shrink:0;
+  display:flex; align-items:center; justify-content:center; margin-top:1px;
+}
+.step-title { font-family:'Syne',sans-serif; font-size:12px; font-weight:700; color:var(--text); margin-bottom:2px; }
+.step-desc  { font-size:11px; color:var(--muted); line-height:1.5; }
+.pc { font-family:'IBM Plex Mono',monospace; font-size:10px; color:var(--purple); background:rgba(183,148,255,0.08); padding:1px 5px; border-radius:3px; }
+
+/* ── ADR DETAIL BOXES ── */
+.adr-box {
+  border-radius:12px; padding:18px 20px;
+  display:flex; flex-direction:column; gap:10px;
+}
+.ab-red    { background:var(--rbg); border:1px solid var(--rbrd); }
+.ab-purple { background:var(--pbg); border:1px solid var(--pbrd); }
+.ab-green  { background:var(--gbg); border:1px solid var(--gbrd); }
+
+.abl {
+  font-family:'IBM Plex Mono',monospace; font-size:9px;
+  letter-spacing:2px; text-transform:uppercase; font-weight:600;
+}
+.ab-red .abl    { color:var(--red); }
+.ab-purple .abl { color:var(--purple); }
+.ab-green .abl  { color:var(--green); }
+
+.code-blk {
+  font-family:'IBM Plex Mono',monospace; font-size:10px; line-height:1.7;
+  background:rgba(0,0,0,0.35); border-radius:8px; padding:10px 12px;
+  border:1px solid rgba(255,255,255,0.05);
+}
+
+.hier { display:flex; flex-direction:column; align-items:center; gap:4px; }
+.hb {
+  font-family:'IBM Plex Mono',monospace; font-size:10px; font-weight:600;
+  padding:6px 12px; border-radius:7px; text-align:center; width:100%;
+}
+.hb-i { background:rgba(183,148,255,0.15); color:var(--purple); border:1.5px solid rgba(183,148,255,0.35); }
+.hb-a { background:rgba(183,148,255,0.07); color:rgba(183,148,255,0.75); border:1px solid rgba(183,148,255,0.18); }
+.h-arr { font-size:11px; color:var(--muted); line-height:1; }
+.h-svcs { display:flex; gap:6px; width:100%; }
+.hs { flex:1; font-family:'IBM Plex Mono',monospace; font-size:9.5px; padding:5px 6px; border-radius:6px; text-align:center; font-weight:500; }
+.hs-b { background:rgba(77,159,255,0.1); color:var(--blue); border:1px solid rgba(77,159,255,0.22); }
+.hs-g { background:rgba(0,229,160,0.08); color:var(--green); border:1px solid rgba(0,229,160,0.18); }
+
+.metric-pair { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+.mbox { border-radius:8px; padding:11px; text-align:center; }
+.mb-r { background:rgba(255,107,107,0.07); border:1px solid rgba(255,107,107,0.15); }
+.mb-g { background:rgba(0,229,160,0.07); border:1px solid rgba(0,229,160,0.15); }
+.mval { font-family:'Syne',sans-serif; font-size:22px; font-weight:800; line-height:1; }
+.mb-r .mval { color:var(--red); }
+.mb-g .mval { color:var(--green); }
+.mlbl { font-size:9px; color:var(--muted); margin-top:3px; font-family:'IBM Plex Mono',monospace; }
+.big-m {
+  background:rgba(183,148,255,0.08); border:1px solid rgba(183,148,255,0.2);
+  border-radius:9px; padding:13px; text-align:center;
+}
+.big-mval { font-family:'Syne',sans-serif; font-size:34px; font-weight:800; color:var(--purple); line-height:1; }
+.big-mlbl { font-size:9px; color:var(--muted); margin-top:5px; font-family:'IBM Plex Mono',monospace; }
+
+/* ── ADR MINI CARDS ── */
+.adr-mini {
+  background:var(--surf); border:1px solid var(--border);
+  border-radius:12px; padding:20px 22px;
+  display:flex; flex-direction:column; gap:9px;
+  transition:border-color 0.2s;
+  position:relative; overflow:hidden;
+}
+.adr-mini::before { content:''; position:absolute; top:0; left:0; right:0; height:2px; }
+.am02::before { background:var(--amber); } .am02 { border-top-color:rgba(255,180,68,0.1); }
+.am03::before { background:var(--red); }   .am03 { border-top-color:rgba(255,107,107,0.1); }
+.am04::before { background:var(--blue); }  .am04 { border-top-color:rgba(77,159,255,0.1); }
+.am05::before { background:var(--green); } .am05 { border-top-color:rgba(0,229,160,0.1); }
+
+.adr-mini:hover { border-color:var(--bordsm); }
+
+.ami-head { display:flex; align-items:center; justify-content:space-between; }
+.ami-id {
+  font-family:'IBM Plex Mono',monospace; font-size:9px; font-weight:600;
+  letter-spacing:1.5px; text-transform:uppercase; padding:3px 9px; border-radius:3px;
+}
+.am02 .ami-id { color:var(--amber); background:rgba(255,180,68,0.08); border:1px solid rgba(255,180,68,0.2); }
+.am03 .ami-id { color:var(--red);   background:rgba(255,107,107,0.08); border:1px solid rgba(255,107,107,0.2); }
+.am04 .ami-id { color:var(--blue);  background:rgba(77,159,255,0.08); border:1px solid rgba(77,159,255,0.2); }
+.am05 .ami-id { color:var(--green); background:rgba(0,229,160,0.06); border:1px solid rgba(0,229,160,0.15); }
+
+.ami-prio { font-family:'IBM Plex Mono',monospace; font-size:9px; color:var(--muted); }
+.ami-title { font-family:'Syne',sans-serif; font-size:14px; font-weight:700; color:#fff; }
+.ami-desc { font-size:11.5px; color:rgba(232,230,240,0.5); line-height:1.6; flex:1; }
+.ami-tags { display:flex; gap:5px; flex-wrap:wrap; }
+.ami-tag {
+  font-family:'IBM Plex Mono',monospace; font-size:9px;
+  padding:3px 8px; border-radius:3px; font-weight:500;
+}
+.am02 .ami-tag { color:var(--amber); background:rgba(255,180,68,0.07); border:1px solid rgba(255,180,68,0.14); }
+.am03 .ami-tag { color:var(--red);   background:rgba(255,107,107,0.07); border:1px solid rgba(255,107,107,0.14); }
+.am04 .ami-tag { color:var(--blue);  background:rgba(77,159,255,0.07); border:1px solid rgba(77,159,255,0.14); }
+.am05 .ami-tag { color:var(--green); background:rgba(0,229,160,0.06); border:1px solid rgba(0,229,160,0.12); }
+
+/* ── KEYBOARD HINT ── */
+.hint {
+  position:fixed; bottom:84px; left:50%; transform:translateX(-50%);
+  font-size:10px; color:#2a2840;
+  display:flex; gap:8px; align-items:center;
+  font-family:'IBM Plex Mono',monospace;
+  letter-spacing:0.5px;
+  opacity:1; transition:opacity 1s;
+}
+.hint.gone { opacity:0; pointer-events:none; }
+.key {
+  background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1);
+  border-radius:4px; padding:2px 7px; font-size:10px;
+}
+
+/* ── ANIM HELPERS ── */
+.a1 { animation: fu 0.5s 0.05s both ease; }
+.a2 { animation: fu 0.5s 0.12s both ease; }
+.a3 { animation: fu 0.5s 0.2s  both ease; }
+.a4 { animation: fu 0.5s 0.28s both ease; }
+.a5 { animation: fu 0.5s 0.36s both ease; }
+@keyframes fu { from{opacity:0;transform:translateY(16px)} to{opacity:1;transform:translateY(0)} }
+</style>
+</head>
+<body>
+
+<div class="g1"></div>
+<div class="g2"></div>
+
+<div class="deck">
+
+  <!-- ══════════════════════════════
+       SLIDE 1 — PORTADA
+  ══════════════════════════════ -->
+  <div class="slide active" id="s1">
+    <div class="slide-inner" style="position:relative;overflow:hidden;gap:0;">
+
+      <div style="position:absolute;inset:0;pointer-events:none;background:radial-gradient(ellipse 70% 60% at 80% 20%,rgba(183,148,255,0.1) 0%,transparent 65%),radial-gradient(ellipse 50% 50% at 5% 90%,rgba(0,229,160,0.06) 0%,transparent 65%);"></div>
+      <div style="position:absolute;inset:0;pointer-events:none;background-image:linear-gradient(rgba(255,255,255,0.025) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,0.025) 1px,transparent 1px);background-size:52px 52px;"></div>
+
+      <!-- top bar -->
+      <div class="a1" style="position:relative;z-index:1;display:flex;justify-content:space-between;align-items:center;margin-bottom:36px;">
+        <div style="display:inline-flex;align-items:center;gap:7px;font-family:'IBM Plex Mono',monospace;font-size:9px;font-weight:500;letter-spacing:2px;text-transform:uppercase;color:var(--green);background:var(--gbg);border:1px solid var(--gbrd);padding:5px 12px;border-radius:4px;">
+          <span style="width:5px;height:5px;border-radius:50%;background:var(--green);animation:pulse 2s ease infinite;display:inline-block;"></span>
+          Weekly Report · Primer Corte · 2026
+        </div>
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--muted);background:var(--surf);border:1px solid var(--border);padding:5px 14px;border-radius:4px;">17 / 03 / 2026</div>
+      </div>
+
+      <!-- two-col layout -->
+      <div style="position:relative;z-index:1;display:grid;grid-template-columns:1fr 1fr;gap:36px;align-items:center;">
+
+        <!-- left: title + pills -->
+        <div class="a2">
+          <div style="font-family:'Syne',sans-serif;font-size:clamp(44px,6.5vw,76px);font-weight:800;letter-spacing:-3.5px;line-height:0.92;color:#fff;margin-bottom:20px;">
+            Gestión<br>de Citas<br><span style="color:var(--purple);font-style:italic;">Inteligente</span>
+          </div>
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--muted);line-height:1.7;margin-bottom:22px;">
+            Sistemas Distribuidos — Spring Boot · Angular<br>
+            Seguimiento semanal · ADRs · Primer corte
+          </div>
+          <div style="display:flex;flex-wrap:wrap;gap:6px;">
+            <div style="font-family:'IBM Plex Mono',monospace;font-size:9.5px;color:var(--blue);background:var(--bbg);border:1px solid var(--bbrd);padding:4px 10px;border-radius:4px;">Spring Boot</div>
+            <div style="font-family:'IBM Plex Mono',monospace;font-size:9.5px;color:var(--green);background:var(--gbg);border:1px solid var(--gbrd);padding:4px 10px;border-radius:4px;">Angular</div>
+            <div style="font-family:'IBM Plex Mono',monospace;font-size:9.5px;color:var(--blue);background:var(--bbg);border:1px solid var(--bbrd);padding:4px 10px;border-radius:4px;">PostgreSQL</div>
+            <div style="font-family:'IBM Plex Mono',monospace;font-size:9.5px;color:var(--amber);background:var(--abg);border:1px solid var(--abrd);padding:4px 10px;border-radius:4px;">Docker</div>
+            <div style="font-family:'IBM Plex Mono',monospace;font-size:9.5px;color:var(--purple);background:var(--pbg);border:1px solid var(--pbrd);padding:4px 10px;border-radius:4px;">API Gateway</div>
+            <div style="font-family:'IBM Plex Mono',monospace;font-size:9.5px;color:var(--muted);background:var(--surf);border:1px solid var(--border);padding:4px 10px;border-radius:4px;">GitHub</div>
+          </div>
+        </div>
+
+        <!-- right: team cards -->
+        <div class="a3" style="display:flex;flex-direction:column;gap:8px;">
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:8.5px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin-bottom:4px;">Equipo de desarrollo</div>
+          <div style="display:flex;align-items:center;gap:12px;background:rgba(77,159,255,0.05);border:1px solid rgba(77,159,255,0.15);border-left:3px solid var(--blue);border-radius:9px;padding:10px 14px;">
+            <div style="font-family:'Syne',sans-serif;font-size:11px;font-weight:800;width:34px;height:34px;border-radius:8px;background:rgba(77,159,255,0.12);border:1px solid rgba(77,159,255,0.25);color:var(--blue);display:flex;align-items:center;justify-content:center;flex-shrink:0;">YS</div>
+            <div><div style="font-size:12px;font-weight:600;color:var(--text);">Yeison Scarpeta Díaz</div><div style="font-size:10px;color:var(--muted);font-family:'IBM Plex Mono',monospace;">Líder · Git · ADRs</div></div>
+          </div>
+          <div style="display:flex;align-items:center;gap:12px;background:rgba(0,229,160,0.04);border:1px solid rgba(0,229,160,0.12);border-left:3px solid var(--green);border-radius:9px;padding:10px 14px;">
+            <div style="font-family:'Syne',sans-serif;font-size:11px;font-weight:800;width:34px;height:34px;border-radius:8px;background:rgba(0,229,160,0.08);border:1px solid rgba(0,229,160,0.2);color:var(--green);display:flex;align-items:center;justify-content:center;flex-shrink:0;">AC</div>
+            <div><div style="font-size:12px;font-weight:600;color:var(--text);">Andrea Cortés Ramírez</div><div style="font-size:10px;color:var(--muted);font-family:'IBM Plex Mono',monospace;">Backend · ADRs</div></div>
+          </div>
+          <div style="display:flex;align-items:center;gap:12px;background:rgba(183,148,255,0.05);border:1px solid rgba(183,148,255,0.14);border-left:3px solid var(--purple);border-radius:9px;padding:10px 14px;">
+            <div style="font-family:'Syne',sans-serif;font-size:11px;font-weight:800;width:34px;height:34px;border-radius:8px;background:rgba(183,148,255,0.1);border:1px solid rgba(183,148,255,0.22);color:var(--purple);display:flex;align-items:center;justify-content:center;flex-shrink:0;">NG</div>
+            <div><div style="font-size:12px;font-weight:600;color:var(--text);">Nicolás Álvarez Aguirre</div><div style="font-size:10px;color:var(--muted);font-family:'IBM Plex Mono',monospace;">Documentación · ADRs</div></div>
+          </div>
+          <div style="display:flex;align-items:center;gap:12px;background:rgba(255,180,68,0.04);border:1px solid rgba(255,180,68,0.13);border-left:3px solid var(--amber);border-radius:9px;padding:10px 14px;">
+            <div style="font-family:'Syne',sans-serif;font-size:11px;font-weight:800;width:34px;height:34px;border-radius:8px;background:rgba(255,180,68,0.08);border:1px solid rgba(255,180,68,0.2);color:var(--amber);display:flex;align-items:center;justify-content:center;flex-shrink:0;">DS</div>
+            <div><div style="font-size:12px;font-weight:600;color:var(--text);">Dayana Méndez Perafán</div><div style="font-size:10px;color:var(--muted);font-family:'IBM Plex Mono',monospace;">Frontend · ADRs</div></div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════
+       SLIDE 2 — QUÉ SE HIZO / FALTÓ
+  ══════════════════════════════ -->
+  <div class="slide" id="s2">
+    <div class="slide-inner">
+
+      <div class="slide-num a1">01 — Seguimiento semanal</div>
+      <div class="slide-title a2" style="font-size:clamp(28px,3.5vw,44px); margin-bottom:6px;">Balance del<br><span>primer corte</span></div>
+      <div class="slide-sub a2">Qué logramos, qué quedó pendiente y qué haremos la próxima semana.</div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;" class="a3">
+
+        <!-- Se hizo -->
+        <div class="sprint-col sc-green">
+          <div class="col-head">
+            <div class="col-icon">✅</div>
+            <div class="col-title">Qué se hizo</div>
+          </div>
+          <div class="item-list">
+            <div class="item"><div class="bullet"></div><span>Frontend en <strong>Angular</strong> — Inicio, Mis Turnos, Solicitar Turno y Perfil</span></div>
+            <div class="item"><div class="bullet"></div><span>Microservicio <strong>turnos-service</strong> con CRUD completo: crear, listar, obtener por ID, cancelar y eliminar</span></div>
+            <div class="item"><div class="bullet"></div><span>Definición de <strong>especialidades, doctores y horarios</strong> disponibles</span></div>
+            <div class="item"><div class="bullet"></div><span><code>users-service</code> y <code>api-gateway</code> como punto único de entrada</span></div>
+            <div class="item"><div class="bullet"></div><span>Integración <strong>frontend–backend</strong> vía HTTP y pruebas en Postman</span></div>
+            <div class="item"><div class="bullet"></div><span><strong>5 ADRs documentados</strong> por integrante — patrones, antipatrones e impacto</span></div>
+          </div>
+        </div>
+
+        <!-- No se logró -->
+        <div class="sprint-col sc-amber">
+          <div class="col-head">
+            <div class="col-icon">⚠️</div>
+            <div class="col-title">Qué no se logró</div>
+          </div>
+          <div class="item-list">
+            <div class="item"><div class="bullet"></div><span><strong>Autenticación completa</strong> — sin login seguro ni control de sesión</span></div>
+            <div class="item"><div class="bullet"></div><span><strong>Horarios dinámicos</strong> — actualmente son datos fijos, no calculados en tiempo real</span></div>
+            <div class="item"><div class="bullet"></div><span><strong>Validaciones robustas</strong> — datos incorrectos pueden llegar al backend sin rechazo</span></div>
+            <div class="item"><div class="bullet"></div><span><strong>Docker Compose</strong> — el ambiente no está completamente contenedorizado</span></div>
+            <div class="item"><div class="bullet"></div><span><code>users-service</code> completo — gestión de usuarios todavía en desarrollo</span></div>
+          </div>
+        </div>
+
+        <!-- Próxima semana -->
+        <div class="sprint-col sc-blue">
+          <div class="col-head">
+            <div class="col-icon">🚀</div>
+            <div class="col-title">Próxima semana</div>
+          </div>
+          <div class="item-list">
+            <div class="item"><div class="bullet"></div><span>Implementar <strong>autenticación con JWT</strong> en Gateway y users-service</span></div>
+            <div class="item"><div class="bullet"></div><span>Completar <strong>users-service</strong> con registro, login y gestión de perfiles</span></div>
+            <div class="item"><div class="bullet"></div><span>Aplicar ADRs pendientes: <strong>MapStruct</strong> y <strong>@Valid</strong> en endpoints</span></div>
+            <div class="item"><div class="bullet"></div><span>Configurar <strong>Docker Compose</strong> para levantar el stack completo</span></div>
+            <div class="item"><div class="bullet"></div><span>Manejar <strong>disponibilidad dinámica</strong> de horarios por doctor y fecha</span></div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Participación -->
+      <div class="part-bar a4" style="margin-top:14px;">
+        <div class="part-lbl">👥 Participación<br>del equipo</div>
+        <div class="part-members">
+          <div class="part-member">
+            <div class="part-av av1">YS</div>
+            <div class="part-pct">25%</div>
+            <div class="part-role">Git · Líder · ADRs</div>
+          </div>
+          <div class="part-member">
+            <div class="part-av av2">AC</div>
+            <div class="part-pct">25%</div>
+            <div class="part-role">Backend · ADRs</div>
+          </div>
+          <div class="part-member">
+            <div class="part-av av3">NG</div>
+            <div class="part-pct">25%</div>
+            <div class="part-role">Documentación · ADRs</div>
+          </div>
+          <div class="part-member">
+            <div class="part-av av4">DS</div>
+            <div class="part-pct">25%</div>
+            <div class="part-role">Frontend · ADRs</div>
+          </div>
+        </div>
+        <div style="font-size:11px;color:var(--muted);font-family:'IBM Plex Mono',monospace;line-height:1.6;max-width:180px;border-left:1px solid var(--border);padding-left:20px;">
+          Participación equitativa. Cada uno documentó <span style="color:var(--purple);font-weight:600;">5 ADRs</span> y contribuyó en su área.
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════
+       SLIDE 3 — ADR PROCESO + ADR-001
+  ══════════════════════════════ -->
+  <div class="slide" id="s3">
+    <div class="slide-inner">
+
+      <div class="slide-num a1">02 — Architecture Decision Records</div>
+      <div class="slide-title a2" style="font-size:clamp(28px,3.5vw,44px); margin-bottom:6px;">ADR-001 · Generic<br><span>Base Service</span></div>
+      <div class="slide-sub a2">El patrón más crítico del sprint — eliminación de código duplicado.</div>
+
+      <div style="display:grid;grid-template-columns:1fr 1.6fr;gap:16px;" class="a3">
+
+        <!-- Proceso ADR -->
+        <div style="background:var(--surf);border:1px solid var(--bordsm);border-radius:14px;padding:20px 22px;display:flex;flex-direction:column;">
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin-bottom:4px;">Proceso aplicado</div>
+          <div style="flex:1;display:flex;flex-direction:column;justify-content:space-around;">
+            <div class="step-row">
+              <div class="step-n">1</div>
+              <div><div class="step-title">Identificación de patrones</div><div class="step-desc">Repository, DTO, Service Layer ya implementados.</div></div>
+            </div>
+            <div class="step-row">
+              <div class="step-n">2</div>
+              <div><div class="step-title">Análisis del proyecto</div><div class="step-desc">Detectar qué ADRs faltan: Generic Service, MapStruct, Exceptions.</div></div>
+            </div>
+            <div class="step-row">
+              <div class="step-n">3</div>
+              <div><div class="step-title">Identificación de antipatrones</div><div class="step-desc">Copy-Paste Programming, Magic Strings, lógica CRUD repetida.</div></div>
+            </div>
+            <div class="step-row">
+              <div class="step-n">4</div>
+              <div><div class="step-title">Detección de malas prácticas</div><div class="step-desc">Mapeo manual con <span class="pc">mapToDTO()</span> y <span class="pc">RuntimeException</span> genérico.</div></div>
+            </div>
+            <div class="step-row">
+              <div class="step-n">5</div>
+              <div><div class="step-title">Diseño e implementación</div><div class="step-desc"><span class="pc">IBaseService&lt;T,D&gt;</span> + clase abstracta <span class="pc">BaseServiceImpl</span>.</div></div>
+            </div>
+            <div class="step-row">
+              <div class="step-n">6</div>
+              <div><div class="step-title">Análisis de impacto</div><div class="step-desc">~40% menos código, mayor mantenibilidad y escalabilidad.</div></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ADR-001 detail -->
+        <div style="display:flex;flex-direction:column;gap:12px;">
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;">
+
+            <!-- Problema -->
+            <div class="adr-box ab-red">
+              <div class="abl">❌ Problema</div>
+              <div class="code-blk" style="font-size:9.5px;">
+                <span style="color:var(--muted);">// TurnoServiceImpl</span><br>
+                <span style="color:var(--red);">findAll()</span>   ~20 lín.<br>
+                <span style="color:var(--red);">save()</span>      ~25 lín.<br><br>
+                <span style="color:var(--muted);">// UserServiceImpl</span><br>
+                <span style="color:var(--muted);">// ← mismo código 🔁</span>
+              </div>
+              <div style="font-size:11px;color:rgba(232,230,240,0.5);line-height:1.55;">Antipatrón <strong style="color:var(--red);">Copy-Paste Programming</strong>. Si algo cambia, hay que actualizarlo en múltiples lugares.</div>
+            </div>
+
+            <!-- Solución -->
+            <div class="adr-box ab-purple">
+              <div class="abl">✅ Solución</div>
+              <div class="hier" style="margin-bottom:8px;">
+                <div class="hb hb-i">IBaseService&lt;T,D&gt;</div>
+                <div class="h-arr">↑ implements</div>
+                <div class="hb hb-a">BaseServiceImpl&lt;T,D&gt;</div>
+                <div class="h-arr">↑ extends</div>
+                <div class="h-svcs">
+                  <div class="hs hs-b">TurnoSvc</div>
+                  <div class="hs hs-g">UserSvc</div>
+                </div>
+              </div>
+              <div class="code-blk" style="font-size:9px;line-height:1.6;">
+                <span style="color:var(--purple);">interface</span> IBaseService<br>
+                &lt;<span style="color:#b794ff;">T, D</span>&gt; {<br>
+                &nbsp;List&lt;D&gt; <span style="color:var(--green);">findAll</span>();<br>
+                &nbsp;D <span style="color:var(--green);">findById</span>(Long id);<br>
+                &nbsp;D <span style="color:var(--green);">save</span>(D dto);<br>
+                &nbsp;void <span style="color:var(--green);">delete</span>(Long);<br>
+                }
+              </div>
+            </div>
+
+            <!-- Impacto -->
+            <div class="adr-box ab-green">
+              <div class="abl">📊 Impacto</div>
+              <div class="metric-pair" style="margin-bottom:8px;">
+                <div class="mbox mb-r"><div class="mval">220</div><div class="mlbl">líneas antes</div></div>
+                <div class="mbox mb-g"><div class="mval">90</div><div class="mlbl">líneas después</div></div>
+              </div>
+              <div class="big-m">
+                <div class="big-mval">~40%</div>
+                <div class="big-mlbl">reducción de código</div>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:5px;margin-top:9px;">
+                <div style="font-size:11px;color:rgba(232,230,240,0.55);display:flex;gap:7px;"><span style="color:var(--green);">✓</span> Nuevas entidades en ~20 lín.</div>
+                <div style="font-size:11px;color:rgba(232,230,240,0.55);display:flex;gap:7px;"><span style="color:var(--green);">✓</span> Mayor mantenibilidad</div>
+                <div style="font-size:11px;color:rgba(232,230,240,0.55);display:flex;gap:7px;"><span style="color:var(--green);">✓</span> Consistencia entre servicios</div>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- Bottom context -->
+          <div style="background:var(--surf);border:1px solid var(--border);border-radius:11px;padding:14px 18px;display:flex;align-items:center;gap:20px;">
+            <div style="display:flex;align-items:center;gap:8px;">
+              <div style="background:rgba(255,107,107,0.1);border:1px solid rgba(255,107,107,0.2);border-radius:6px;padding:3px 10px;font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--red);">ADR-001 · PROPUESTO</div>
+              <div style="font-size:11.5px;color:var(--muted);">Prioridad: <span style="color:var(--red);font-weight:600;">Alta 🔴</span></div>
+            </div>
+            <div style="width:1px;height:28px;background:var(--border);"></div>
+            <div style="font-size:11.5px;color:rgba(232,230,240,0.5);line-height:1.5;">
+              Patrón estructural aplicado a <strong style="color:var(--text);">TurnoServiceImpl</strong> y <strong style="color:var(--text);">UserServiceImpl</strong>. Genéricos Java <span style="font-family:'IBM Plex Mono',monospace;color:var(--purple);font-size:10.5px;">T</span> = entidad, <span style="font-family:'IBM Plex Mono',monospace;color:var(--purple);font-size:10.5px;">D</span> = DTO.
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════
+       SLIDE 4 — ADRs 002 - 005
+  ══════════════════════════════ -->
+  <div class="slide" id="s4">
+    <div class="slide-inner">
+
+      <div class="slide-num a1">03 — ADRs complementarios</div>
+      <div class="slide-title a2" style="font-size:clamp(28px,3.5vw,44px); margin-bottom:6px;">ADRs 002 – 005<br><span>Patrones de soporte</span></div>
+      <div class="slide-sub a2">4 decisiones que completan la base de calidad del sistema.</div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;" class="a3">
+
+        <div class="adr-mini am02">
+          <div class="ami-head">
+            <div class="ami-id">ADR-002</div>
+            <div class="ami-prio">🟡 Media prioridad</div>
+          </div>
+          <div class="ami-title">MapStruct — Mapeo automático</div>
+          <div class="ami-desc">Elimina el método <span style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:var(--amber);">mapToDTO()</span> manual en cada servicio. Con la anotación <span style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:var(--amber);">@Mapper</span> la conversión <strong style="color:rgba(232,230,240,0.7);">Entity ↔ DTO</strong> se genera automáticamente, eliminando el riesgo de olvidar campos o tener inconsistencias entre servicios.</div>
+          <div class="ami-tags">
+            <div class="ami-tag">@Mapper</div>
+            <div class="ami-tag">Entity → DTO</div>
+            <div class="ami-tag">Patrón estructural</div>
+          </div>
+        </div>
+
+        <div class="adr-mini am03">
+          <div class="ami-head">
+            <div class="ami-id">ADR-003</div>
+            <div class="ami-prio">🟡 Media prioridad</div>
+          </div>
+          <div class="ami-title">Excepciones personalizadas</div>
+          <div class="ami-desc">Reemplaza <span style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:var(--red);">RuntimeException</span> genérico por excepciones específicas del dominio como <span style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:var(--red);">TurnoNotFoundException</span>. Antipatrón <strong style="color:rgba(232,230,240,0.7);">Magic Strings</strong> eliminado — mejora el debugging y diferencia claramente los tipos de error.</div>
+          <div class="ami-tags">
+            <div class="ami-tag">TurnoNotFoundException</div>
+            <div class="ami-tag">Dominio</div>
+            <div class="ami-tag">Antipatrón Magic Strings</div>
+          </div>
+        </div>
+
+        <div class="adr-mini am04">
+          <div class="ami-head">
+            <div class="ami-id">ADR-004</div>
+            <div class="ami-prio">🟢 Baja prioridad</div>
+          </div>
+          <div class="ami-title">Auditoría de entidades</div>
+          <div class="ami-desc">Registra automáticamente las fechas de <strong style="color:rgba(232,230,240,0.7);">creación y modificación</strong> en todas las entidades usando Spring Data JPA, sin hacerlo manualmente en cada operación de guardado o actualización del sistema.</div>
+          <div class="ami-tags">
+            <div class="ami-tag">@CreatedDate</div>
+            <div class="ami-tag">@LastModifiedDate</div>
+            <div class="ami-tag">Spring Data JPA</div>
+          </div>
+        </div>
+
+        <div class="adr-mini am05">
+          <div class="ami-head">
+            <div class="ami-id">ADR-005</div>
+            <div class="ami-prio">🟡 Media prioridad</div>
+          </div>
+          <div class="ami-title">Bean Validation · @Valid</div>
+          <div class="ami-desc">Garantiza que los datos que llegan a los endpoints sean correctos <strong style="color:rgba(232,230,240,0.7);">antes de tocar la capa de negocio</strong>. Evita errores en base de datos por datos nulos, vacíos o malformados que de otra forma pasarían sin ser rechazados.</div>
+          <div class="ami-tags">
+            <div class="ami-tag">@Valid</div>
+            <div class="ami-tag">@NotNull</div>
+            <div class="ami-tag">@Email</div>
+            <div class="ami-tag">@Size</div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Bottom summary -->
+      <div class="a4" style="display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-top:14px;">
+        <div style="background:var(--pbg);border:1px solid var(--pbrd);border-radius:10px;padding:12px;text-align:center;">
+          <div style="font-family:'Syne',sans-serif;font-size:22px;font-weight:800;color:var(--purple);line-height:1;">20</div>
+          <div style="font-size:9.5px;color:var(--muted);margin-top:3px;font-family:'IBM Plex Mono',monospace;">ADRs totales</div>
+        </div>
+        <div style="background:var(--gbg);border:1px solid var(--gbrd);border-radius:10px;padding:12px;text-align:center;">
+          <div style="font-family:'Syne',sans-serif;font-size:22px;font-weight:800;color:var(--green);line-height:1;">~40%</div>
+          <div style="font-size:9.5px;color:var(--muted);margin-top:3px;font-family:'IBM Plex Mono',monospace;">menos código dup.</div>
+        </div>
+        <div style="background:var(--abg);border:1px solid var(--abrd);border-radius:10px;padding:12px;text-align:center;">
+          <div style="font-family:'Syne',sans-serif;font-size:22px;font-weight:800;color:var(--amber);line-height:1;">3</div>
+          <div style="font-size:9.5px;color:var(--muted);margin-top:3px;font-family:'IBM Plex Mono',monospace;">antipatrones</div>
+        </div>
+        <div style="background:var(--bbg);border:1px solid var(--bbrd);border-radius:10px;padding:12px;text-align:center;">
+          <div style="font-family:'Syne',sans-serif;font-size:22px;font-weight:800;color:var(--blue);line-height:1;">6</div>
+          <div style="font-size:9.5px;color:var(--muted);margin-top:3px;font-family:'IBM Plex Mono',monospace;">pasos del proceso</div>
+        </div>
+        <div style="background:var(--rbg);border:1px solid var(--rbrd);border-radius:10px;padding:12px;text-align:center;">
+          <div style="font-family:'Syne',sans-serif;font-size:22px;font-weight:800;color:var(--red);line-height:1;">↑</div>
+          <div style="font-size:9.5px;color:var(--muted);margin-top:3px;font-family:'IBM Plex Mono',monospace;">mantenibilidad</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+
+  <!-- ══════════════════════════════
+       SLIDE 6 — CIERRE
+  ══════════════════════════════ -->
+  <div class="slide" id="s5">
+    <div class="slide-inner" style="position:relative;overflow:hidden;justify-content:space-between;">
+
+      <div style="position:absolute;inset:0;pointer-events:none;background:radial-gradient(ellipse 80% 70% at 60% 40%,rgba(183,148,255,0.12) 0%,transparent 65%),radial-gradient(ellipse 50% 50% at 15% 80%,rgba(0,229,160,0.07) 0%,transparent 65%);"></div>
+      <div style="position:absolute;inset:0;pointer-events:none;background-image:linear-gradient(rgba(255,255,255,0.02) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,0.02) 1px,transparent 1px);background-size:52px 52px;"></div>
+
+      <!-- top tag -->
+      <div class="a1" style="position:relative;z-index:1;">
+        <div style="display:inline-flex;align-items:center;gap:7px;font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--green);background:var(--gbg);border:1px solid var(--gbrd);padding:5px 12px;border-radius:4px;">
+          <span style="width:5px;height:5px;border-radius:50%;background:var(--green);animation:pulse 2s ease infinite;display:inline-block;"></span>
+          Primer Corte completado
+        </div>
+      </div>
+
+      <!-- big thanks -->
+      <div class="a2" style="position:relative;z-index:1;text-align:center;padding:32px 0;">
+        <div style="font-family:'Syne',sans-serif;font-size:clamp(60px,10vw,110px);font-weight:800;letter-spacing:-5px;line-height:0.88;color:#fff;margin-bottom:18px;">
+          ¡Gra<span style="color:var(--purple);font-style:italic;">cias!</span>
+        </div>
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--muted);line-height:1.8;">
+          Gestión de Citas Inteligente — Microservicios · Spring Boot · Angular · Docker<br>
+          <span style="color:var(--purple);">github.com/sparyock/Gestion-De-Citas-Inteligente</span>
+        </div>
+      </div>
+
+      <!-- win cards -->
+      <div class="a3" style="position:relative;z-index:1;display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+        <div style="display:flex;align-items:center;gap:12px;background:rgba(0,229,160,0.05);border:1px solid rgba(0,229,160,0.15);border-radius:11px;padding:14px 16px;">
+          <span style="font-size:20px;flex-shrink:0;">✅</span>
+          <div><div style="font-size:12.5px;font-weight:700;color:var(--text);">CRUD de turnos</div><div style="font-size:11px;color:var(--muted);margin-top:2px;">Crear, listar, obtener, cancelar y eliminar</div></div>
+        </div>
+        <div style="display:flex;align-items:center;gap:12px;background:rgba(77,159,255,0.05);border:1px solid rgba(77,159,255,0.15);border-radius:11px;padding:14px 16px;">
+          <span style="font-size:20px;flex-shrink:0;">🔀</span>
+          <div><div style="font-size:12.5px;font-weight:700;color:var(--text);">API Gateway activo</div><div style="font-size:11px;color:var(--muted);margin-top:2px;">Punto único de entrada al sistema</div></div>
+        </div>
+        <div style="display:flex;align-items:center;gap:12px;background:rgba(183,148,255,0.05);border:1px solid rgba(183,148,255,0.15);border-radius:11px;padding:14px 16px;">
+          <span style="font-size:20px;flex-shrink:0;">📐</span>
+          <div><div style="font-size:12.5px;font-weight:700;color:var(--text);">20 ADRs documentados</div><div style="font-size:11px;color:var(--muted);margin-top:2px;">5 por integrante · patrones y antipatrones</div></div>
+        </div>
+        <div style="display:flex;align-items:center;gap:12px;background:rgba(255,180,68,0.05);border:1px solid rgba(255,180,68,0.15);border-radius:11px;padding:14px 16px;">
+          <span style="font-size:20px;flex-shrink:0;">🌐</span>
+          <div><div style="font-size:12.5px;font-weight:700;color:var(--text);">Frontend Angular</div><div style="font-size:11px;color:var(--muted);margin-top:2px;">Integrado con backend vía HTTP</div></div>
+        </div>
+      </div>
+
+      <!-- team footer -->
+      <div class="a4" style="position:relative;z-index:1;display:flex;justify-content:center;gap:16px;padding-top:24px;border-top:1px solid var(--border);margin-top:20px;">
+        <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:rgba(77,159,255,0.7);">YS — Yeison Scarpeta</span>
+        <span style="color:var(--border);">·</span>
+        <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:rgba(0,229,160,0.7);">AC — Andrea Cortés</span>
+        <span style="color:var(--border);">·</span>
+        <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:rgba(183,148,255,0.7);">NG — Nicolás Álvarez</span>
+        <span style="color:var(--border);">·</span>
+        <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:rgba(255,180,68,0.7);">DS — Dayana Méndez</span>
+      </div>
+
+    </div>
+  </div>
+
+</div><!-- /deck -->
+
+<!-- NAV -->
+<div class="nav">
+  <button class="nav-btn" onclick="go(-1)">←</button>
+  <div class="dots" id="dots"></div>
+  <button class="nav-btn" onclick="go(1)">→</button>
+  <div class="counter" id="ctr">1 / 5</div>
+</div>
+
+<div class="hint" id="hint">
+  <span class="key">←</span><span class="key">→</span> navegar
+  &nbsp;·&nbsp;
+  <span class="key">Space</span> siguiente
+</div>
+
+<script>
+  const slides = document.querySelectorAll('.slide');
+  const total  = slides.length;
+  let cur = 0;
+
+  // build dots
+  const dotsEl = document.getElementById('dots');
+  slides.forEach((_, i) => {
+    const d = document.createElement('div');
+    d.className = 'dot' + (i === 0 ? ' active' : '');
+    d.onclick = () => goTo(i);
+    dotsEl.appendChild(d);
+  });
+
+  function goTo(idx) {
+    if (idx < 0 || idx >= total) return;
+    slides[cur].classList.remove('active');
+    cur = idx;
+    slides[cur].classList.add('active');
+    // scroll to top of deck
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    document.querySelectorAll('.dot').forEach((d,i) => d.classList.toggle('active', i === cur));
+    document.getElementById('ctr').textContent = `${cur+1} / ${total}`;
+  }
+
+  function go(dir) { goTo(cur + dir); }
+
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === ' ') { e.preventDefault(); go(1); }
+    if (e.key === 'ArrowLeft') go(-1);
+  });
+
+  // hide hint
+  setTimeout(() => document.getElementById('hint').classList.add('gone'), 4000);
+</script>
+</body>
+</html>

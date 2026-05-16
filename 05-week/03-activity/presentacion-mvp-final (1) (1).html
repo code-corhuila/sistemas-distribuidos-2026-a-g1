@@ -1,0 +1,1323 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gestión de Citas Inteligente — MVP</title>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,ital,wght@9..144,0,300;9..144,0,700;9..144,0,900;9..144,1,300&family=DM+Sans:wght@300;400;500;600&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+/* ── RESET & BASE ── */
+*, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+html { font-size:16px; }
+
+body {
+  font-family:'DM Sans', sans-serif;
+  background:#060d1a;
+  color:#e2e8f0;
+  height:100vh;
+  overflow:hidden;
+  user-select:none;
+}
+
+/* ── SLIDE SYSTEM ── */
+.deck { width:100vw; height:100vh; position:relative; }
+
+.slide {
+  position:absolute; inset:0;
+  display:flex; flex-direction:column;
+  opacity:0; pointer-events:none;
+  transition:opacity 0.5s ease, transform 0.5s cubic-bezier(.22,1,.36,1);
+  transform:translateX(40px);
+  overflow-y:auto; overflow-x:hidden;
+}
+
+.slide.active {
+  opacity:1; pointer-events:all;
+  transform:translateX(0);
+}
+
+.slide.prev {
+  opacity:0; transform:translateX(-40px);
+}
+
+/* ── NAVIGATION ── */
+.nav {
+  position:fixed; bottom:32px; left:50%; transform:translateX(-50%);
+  display:flex; align-items:center; gap:14px;
+  z-index:1000;
+  background:rgba(6,13,26,0.8);
+  border:1px solid rgba(255,255,255,0.08);
+  border-radius:50px;
+  padding:10px 20px;
+  backdrop-filter:blur(16px);
+}
+
+.nav-btn {
+  width:36px; height:36px; border-radius:50%;
+  border:1px solid rgba(255,255,255,0.12);
+  background:rgba(255,255,255,0.05);
+  color:#94a3b8; cursor:pointer;
+  display:flex; align-items:center; justify-content:center;
+  font-size:15px; transition:all 0.18s;
+}
+.nav-btn:hover { background:rgba(255,255,255,0.12); color:white; }
+
+.nav-dots { display:flex; gap:7px; align-items:center; }
+.nav-dot {
+  width:7px; height:7px; border-radius:50%;
+  background:rgba(255,255,255,0.2);
+  cursor:pointer; transition:all 0.25s;
+}
+.nav-dot.active { background:#3b82f6; width:22px; border-radius:4px; }
+
+.slide-counter {
+  font-size:11px; font-weight:600; color:#475569;
+  font-family:'JetBrains Mono', monospace;
+  min-width:32px; text-align:center;
+}
+
+/* keyboard hint */
+.hint {
+  position:fixed; bottom:88px; left:50%; transform:translateX(-50%);
+  font-size:10px; color:#334155; letter-spacing:0.5px;
+  display:flex; gap:8px; align-items:center;
+  opacity:1; transition:opacity 1s ease;
+}
+.hint.hidden { opacity:0; pointer-events:none; }
+.key {
+  background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.1);
+  border-radius:4px; padding:2px 7px; font-family:'JetBrains Mono',monospace;
+  font-size:10px;
+}
+
+/* ═══════════════════════════════════
+   SLIDE 1 — PORTADA
+═══════════════════════════════════ */
+#s1 {
+  background:#060d1a;
+  padding:0;
+}
+
+.s1-bg {
+  position:absolute; inset:0;
+  background:
+    radial-gradient(ellipse 80% 60% at 70% 40%, rgba(37,99,235,0.18) 0%, transparent 65%),
+    radial-gradient(ellipse 40% 40% at 20% 80%, rgba(6,182,212,0.08) 0%, transparent 60%);
+  pointer-events:none;
+}
+
+.s1-grid {
+  position:absolute; inset:0;
+  background-image:
+    linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px);
+  background-size:60px 60px;
+  pointer-events:none;
+}
+
+.s1-content {
+  position:relative; z-index:1;
+  display:grid; grid-template-columns:1fr 1fr;
+  height:100%; padding:60px 72px;
+  align-items:center; gap:40px;
+}
+
+.s1-left { display:flex; flex-direction:column; gap:0; }
+
+.s1-badge {
+  display:inline-flex; align-items:center; gap:8px;
+  background:rgba(34,197,94,0.1); border:1px solid rgba(34,197,94,0.25);
+  color:#4ade80; font-size:11px; font-weight:600; letter-spacing:1.5px;
+  text-transform:uppercase; padding:6px 14px; border-radius:30px;
+  width:fit-content; margin-bottom:28px;
+}
+
+.s1-badge-dot {
+  width:6px; height:6px; border-radius:50%; background:#4ade80;
+  animation:blink 2s ease infinite;
+}
+@keyframes blink {
+  0%,100% { opacity:1; } 50% { opacity:0.2; }
+}
+
+.s1-title {
+  font-family:'Fraunces', serif;
+  font-size:clamp(42px, 5.5vw, 72px);
+  font-weight:900; line-height:0.97;
+  letter-spacing:-3px; color:#fff;
+  margin-bottom:24px;
+}
+
+.s1-title .accent { color:#3b82f6; font-style:italic; }
+
+.s1-desc {
+  font-size:15px; color:#64748b; line-height:1.7;
+  max-width:400px; margin-bottom:36px; font-weight:300;
+}
+
+.s1-pills { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:40px; }
+.pill {
+  display:inline-flex; align-items:center; gap:6px;
+  background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1);
+  color:#94a3b8; font-size:11px; font-weight:500; padding:5px 12px;
+  border-radius:20px; font-family:'JetBrains Mono', monospace;
+  transition:all 0.18s;
+}
+.pill:hover { background:rgba(59,130,246,0.1); border-color:rgba(59,130,246,0.3); color:#93c5fd; }
+
+.s1-team-label {
+  font-size:10px; font-weight:700; color:#334155;
+  letter-spacing:1.5px; text-transform:uppercase; margin-bottom:14px;
+}
+
+.s1-right { display:flex; flex-direction:column; gap:10px; }
+
+.member-card {
+  background:rgba(255,255,255,0.03);
+  border:1px solid rgba(255,255,255,0.06);
+  border-radius:14px; padding:16px 20px;
+  display:flex; align-items:center; gap:16px;
+  transition:all 0.2s;
+  position:relative; overflow:hidden;
+}
+
+.member-card::before {
+  content:''; position:absolute; left:0; top:0; bottom:0;
+  width:3px;
+}
+.member-card.c1::before { background:#3b82f6; }
+.member-card.c2::before { background:#06b6d4; }
+.member-card.c3::before { background:#8b5cf6; }
+.member-card.c4::before { background:#f59e0b; }
+
+.member-card:hover { background:rgba(255,255,255,0.06); transform:translateX(4px); }
+
+.member-avatar {
+  width:44px; height:44px; border-radius:12px;
+  display:flex; align-items:center; justify-content:center;
+  font-size:13px; font-weight:700; flex-shrink:0; letter-spacing:0.5px;
+}
+.member-card.c1 .member-avatar { background:rgba(59,130,246,0.15); color:#93c5fd; border:1px solid rgba(59,130,246,0.25); }
+.member-card.c2 .member-avatar { background:rgba(6,182,212,0.15); color:#67e8f9; border:1px solid rgba(6,182,212,0.25); }
+.member-card.c3 .member-avatar { background:rgba(139,92,246,0.15); color:#c4b5fd; border:1px solid rgba(139,92,246,0.25); }
+.member-card.c4 .member-avatar { background:rgba(245,158,11,0.15); color:#fcd34d; border:1px solid rgba(245,158,11,0.25); }
+
+.member-name { font-size:14px; font-weight:600; color:#e2e8f0; }
+.member-role { font-size:11px; color:#475569; margin-top:2px; }
+
+/* ═══════════════════════════════════
+   SLIDE 2 — PROBLEMA
+═══════════════════════════════════ */
+#s2 { background:#f8fafc; }
+
+.light-slide { padding:60px 72px; display:flex; flex-direction:column; }
+
+.slide-topbar {
+  display:flex; justify-content:space-between; align-items:center;
+  margin-bottom:40px;
+}
+
+.slide-num-badge {
+  display:flex; align-items:center; gap:10px;
+}
+.snb-num {
+  width:32px; height:32px; border-radius:9px;
+  background:#0f172a; color:white;
+  font-size:12px; font-weight:700;
+  display:flex; align-items:center; justify-content:center;
+}
+.snb-label {
+  font-size:11px; font-weight:700; text-transform:uppercase;
+  letter-spacing:1.2px; color:#94a3b8;
+}
+
+.slide-speaker {
+  font-size:11px; color:#cbd5e1;
+  background:#f1f5f9; border:1px solid #e2e8f0;
+  border-radius:20px; padding:5px 12px;
+  font-family:'JetBrains Mono', monospace;
+}
+
+.slide-headline {
+  font-family:'Fraunces', serif;
+  font-size:clamp(28px, 3.5vw, 46px);
+  font-weight:900; color:#0f172a;
+  letter-spacing:-1.5px; line-height:1.05;
+  margin-bottom:36px;
+}
+
+.slide-headline .red { color:#dc2626; }
+.slide-headline .blue { color:#2563eb; }
+
+.s2-grid { display:grid; grid-template-columns:1fr 1fr; gap:24px; flex:1; }
+
+.scenario-box {
+  background:white; border:1px solid #fee2e2;
+  border-radius:18px; padding:28px;
+  display:flex; flex-direction:column; gap:0;
+  box-shadow:0 4px 24px rgba(220,38,38,0.06);
+}
+
+.scenario-head {
+  display:flex; align-items:center; gap:10px;
+  padding-bottom:16px; border-bottom:1px solid #fee2e2; margin-bottom:18px;
+}
+.scenario-icon {
+  width:36px; height:36px; border-radius:10px;
+  background:#fef2f2; display:flex; align-items:center; justify-content:center;
+  font-size:18px;
+}
+.scenario-title { font-size:12px; font-weight:700; color:#dc2626; text-transform:uppercase; letter-spacing:1px; }
+
+.scenario-items { display:flex; flex-direction:column; gap:12px; }
+.scenario-item {
+  display:flex; align-items:flex-start; gap:12px;
+  font-size:13.5px; color:#374151; line-height:1.5;
+}
+.s-dot {
+  width:8px; height:8px; border-radius:50%;
+  background:#fca5a5; flex-shrink:0; margin-top:5px;
+}
+
+.impact-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; align-content:start; }
+
+.impact-card {
+  background:white; border:1px solid #e2e8f0;
+  border-radius:14px; padding:20px;
+  transition:all 0.2s;
+  box-shadow:0 2px 8px rgba(0,0,0,0.04);
+}
+.impact-card:hover { transform:translateY(-3px); box-shadow:0 8px 24px rgba(0,0,0,0.08); border-color:#bfdbfe; }
+
+.ic-icon { font-size:26px; margin-bottom:10px; display:block; }
+.ic-name { font-size:13px; font-weight:700; color:#0f172a; margin-bottom:4px; }
+.ic-desc { font-size:11.5px; color:#64748b; line-height:1.45; }
+
+/* ═══════════════════════════════════
+   SLIDE 3 — SOLUCIÓN ANTES/AHORA
+═══════════════════════════════════ */
+#s3 { background:#f8fafc; }
+
+.s3-cols {
+  display:grid; grid-template-columns:1fr 56px 1fr;
+  gap:0; flex:1; align-items:stretch;
+}
+
+.antes-col {
+  background:white; border:1px solid #fecaca;
+  border-radius:18px; padding:28px; overflow:hidden;
+}
+
+.ahora-col {
+  background:white; border:1px solid #bbf7d0;
+  border-radius:18px; padding:28px; overflow:hidden;
+}
+
+.col-head {
+  display:flex; align-items:center; gap:10px;
+  padding-bottom:16px; border-bottom:1px solid; margin-bottom:20px;
+}
+.antes-col .col-head { border-color:#fee2e2; }
+.ahora-col .col-head { border-color:#dcfce7; }
+
+.col-head-icon {
+  font-size:20px; width:36px; height:36px; border-radius:10px;
+  display:flex; align-items:center; justify-content:center;
+}
+.antes-col .col-head-icon { background:#fef2f2; }
+.ahora-col .col-head-icon { background:#f0fdf4; }
+
+.col-head-title { font-size:13px; font-weight:800; text-transform:uppercase; letter-spacing:1px; }
+.antes-col .col-head-title { color:#dc2626; }
+.ahora-col .col-head-title { color:#16a34a; }
+
+.col-items { display:flex; flex-direction:column; gap:11px; }
+.col-item {
+  display:flex; align-items:flex-start; gap:12px;
+  font-size:13.5px; line-height:1.45; padding:10px 12px;
+  border-radius:10px;
+}
+.antes-col .col-item { color:#7f1d1d; background:#fef2f2; }
+.ahora-col .col-item { color:#14532d; background:#f0fdf4; }
+
+.ci-icon {
+  width:22px; height:22px; border-radius:6px;
+  display:flex; align-items:center; justify-content:center;
+  font-size:11px; font-weight:800; flex-shrink:0;
+}
+.antes-col .ci-icon { background:#fecaca; color:#dc2626; }
+.ahora-col .ci-icon { background:#bbf7d0; color:#16a34a; }
+
+.arrow-mid {
+  display:flex; align-items:center; justify-content:center;
+}
+.arrow-circle {
+  width:52px; height:52px; border-radius:50%;
+  background:#2563eb; color:white;
+  display:flex; align-items:center; justify-content:center;
+  font-size:22px; font-weight:700;
+  box-shadow:0 8px 24px rgba(37,99,235,0.4);
+}
+
+/* ═══════════════════════════════════
+   SLIDE 4 — ARQUITECTURA
+═══════════════════════════════════ */
+#s4 { background:#060d1a; }
+
+.arch-slide {
+  padding:52px 72px; display:flex; flex-direction:column; height:100%;
+  position:relative;
+}
+
+.arch-bg {
+  position:absolute; inset:0;
+  background:
+    radial-gradient(ellipse 50% 50% at 80% 30%, rgba(37,99,235,0.12) 0%, transparent 60%),
+    radial-gradient(ellipse 40% 40% at 15% 75%, rgba(6,182,212,0.07) 0%, transparent 60%);
+  pointer-events:none;
+}
+
+.arch-slide .slide-topbar { position:relative; z-index:1; }
+.arch-slide .slide-headline { position:relative; z-index:1; color:#0f172a; margin-bottom:32px; }
+.arch-slide .slide-headline .blue { color:#1d4ed8; }
+.arch-slide .arch-conn-label { color:#1e293b; font-weight:700; }
+
+.arch-diagram {
+  position:relative; z-index:1;
+  flex:1; display:flex; align-items:center; justify-content:center;
+  gap:0;
+}
+
+/* nodes */
+.arch-node {
+  display:flex; flex-direction:column; align-items:center;
+  gap:14px; flex-shrink:0;
+}
+
+.arch-box {
+  border-radius:16px; padding:20px 22px;
+  text-align:center; border:1.5px solid;
+  min-width:148px; position:relative;
+  transition:all 0.22s; cursor:default;
+}
+.arch-box:hover { transform:translateY(-5px); }
+
+.arch-box.client   { background:rgba(100,116,139,0.1); border-color:rgba(100,116,139,0.3); }
+.arch-box.gateway  { background:rgba(245,158,11,0.25);  border-color:rgba(245,158,11,0.7);
+                     box-shadow:0 0 28px rgba(245,158,11,0.2); }
+.arch-box.service  { background:rgba(37,99,235,0.1);   border-color:rgba(37,99,235,0.4);
+                     box-shadow:0 0 28px rgba(37,99,235,0.1); }
+.arch-box.database { background:rgba(34,197,94,0.1);   border-color:rgba(34,197,94,0.4);
+                     box-shadow:0 0 28px rgba(34,197,94,0.1); }
+
+.arch-box-icon { font-size:28px; margin-bottom:8px; display:block; }
+.arch-box-name { font-size:13px; font-weight:700; margin-bottom:3px; }
+.arch-box.client   .arch-box-name { color:#94a3b8; }
+.arch-box.gateway  .arch-box-name { color:#000000; }
+.arch-box.gateway  .arch-box-tech { color:#1c1917; font-weight:600; }
+.arch-box.service  .arch-box-name { color:#93c5fd; }
+.arch-box.database .arch-box-name { color:#86efac; }
+
+.arch-box-tech { font-size:10px; color:#475569; font-family:'JetBrains Mono',monospace; }
+
+/* connector */
+.arch-conn {
+  display:flex; flex-direction:column; align-items:center;
+  gap:4px; padding:0 8px; flex-shrink:0;
+}
+.arch-conn-line {
+  width:56px; height:2px;
+  background:linear-gradient(90deg, rgba(255,255,255,0.1), rgba(255,255,255,0.25), rgba(255,255,255,0.1));
+  position:relative;
+}
+.arch-conn-line::after {
+  content:''; position:absolute; right:-7px; top:-5px;
+  border:6px solid transparent; border-left-color:rgba(255,255,255,0.25);
+}
+.arch-conn-label {
+  font-size:9px; color:#334155; font-weight:600;
+  letter-spacing:0.5px; text-transform:uppercase; white-space:nowrap;
+}
+
+/* layers side panel */
+.arch-layers {
+  margin-left:48px;
+  display:flex; flex-direction:column; gap:10px; min-width:220px;
+}
+
+.arch-layer-row {
+  background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.07);
+  border-radius:10px; padding:11px 16px;
+  display:flex; align-items:center; gap:12px;
+  transition:all 0.18s;
+}
+.arch-layer-row:hover { background:rgba(255,255,255,0.07); border-color:rgba(59,130,246,0.3); }
+
+.alr-badge {
+  font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.8px;
+  padding:3px 8px; border-radius:6px; white-space:nowrap; flex-shrink:0;
+}
+.alr-badge.ctrl   { background:rgba(37,99,235,0.15); color:#93c5fd; border:1px solid rgba(37,99,235,0.25); }
+.alr-badge.svc    { background:rgba(139,92,246,0.15); color:#c4b5fd; border:1px solid rgba(139,92,246,0.25); }
+.alr-badge.repo   { background:rgba(6,182,212,0.15);  color:#67e8f9; border:1px solid rgba(6,182,212,0.25); }
+.alr-badge.db     { background:rgba(34,197,94,0.15);  color:#86efac; border:1px solid rgba(34,197,94,0.25); }
+
+.alr-text { font-size:12px; color:#334155; line-height:1.35; }
+.alr-text strong { color:#0f172a; font-weight:700; display:block; font-size:12.5px; }
+
+.arch-divider {
+  width:1px; background:rgba(255,255,255,0.07);
+  align-self:stretch; margin:0 36px; flex-shrink:0;
+}
+
+/* ═══════════════════════════════════
+   SLIDE 5 — FLUJO (era s4)
+═══════════════════════════════════ */
+#s4 { background:#f8fafc; }
+
+.flow-wrap {
+  background:white; border:1px solid #e2e8f0;
+  border-radius:20px; padding:36px 40px;
+  flex:1; display:flex; flex-direction:column;
+  box-shadow:0 4px 24px rgba(0,0,0,0.05);
+}
+
+.flow-steps {
+  display:flex; align-items:flex-start;
+  justify-content:space-between;
+  position:relative; flex:1;
+  margin-top:12px;
+}
+
+.flow-steps::before {
+  content:'';
+  position:absolute;
+  top:36px; left:56px; right:56px;
+  height:2px;
+  background:linear-gradient(90deg, #dbeafe, #2563eb 40%, #16a34a 80%, #dcfce7);
+  z-index:0;
+}
+
+.fstep {
+  display:flex; flex-direction:column; align-items:center;
+  text-align:center; z-index:1; flex:1;
+}
+
+.fstep-ring {
+  width:72px; height:72px; border-radius:22px;
+  display:flex; align-items:center; justify-content:center;
+  font-size:28px; margin-bottom:16px;
+  background:white; border:2px solid #e2e8f0;
+  box-shadow:0 4px 16px rgba(0,0,0,0.08);
+  transition:all 0.25s; cursor:default; position:relative;
+}
+.fstep-ring:hover { transform:translateY(-6px); box-shadow:0 12px 32px rgba(37,99,235,0.18); border-color:#93c5fd; }
+
+.fstep-ring.done { background:#2563eb; border-color:#2563eb; box-shadow:0 8px 28px rgba(37,99,235,0.4); }
+
+.fstep-badge {
+  position:absolute; top:-10px; right:-10px;
+  width:24px; height:24px; border-radius:8px;
+  font-size:10px; font-weight:800; color:white;
+  display:flex; align-items:center; justify-content:center;
+  border:2px solid #f8fafc;
+}
+.fstep:nth-child(1) .fstep-badge { background:#3b82f6; }
+.fstep:nth-child(2) .fstep-badge { background:#06b6d4; }
+.fstep:nth-child(3) .fstep-badge { background:#8b5cf6; }
+.fstep:nth-child(4) .fstep-badge { background:#f59e0b; }
+.fstep:nth-child(5) .fstep-badge { background:#16a34a; }
+
+.fstep-name { font-size:13px; font-weight:700; color:#0f172a; margin-bottom:6px; }
+.fstep-desc { font-size:11px; color:#64748b; max-width:110px; line-height:1.45; }
+
+.flow-tagline {
+  background:#0f172a; border-radius:12px; padding:14px 24px;
+  text-align:center; margin-top:28px;
+  font-size:13px; font-weight:600; color:#93c5fd;
+  letter-spacing:0.3px;
+  display:flex; gap:6px; align-items:center; justify-content:center;
+}
+.flow-tagline span { color:#475569; }
+
+/* ═══════════════════════════════════
+   SLIDE 5 — BACKLOG
+═══════════════════════════════════ */
+#s5 { background:#f8fafc; }
+
+.backlog-grid {
+  display:grid; grid-template-columns:repeat(3,1fr);
+  gap:18px; flex:1;
+}
+
+.backlog-col {
+  border-radius:18px; padding:24px;
+  display:flex; flex-direction:column; gap:0;
+  border:1px solid;
+}
+
+.backlog-col.done   { background:#f0fdf4; border-color:#bbf7d0; }
+.backlog-col.miss   { background:#fffbeb; border-color:#fde68a; }
+.backlog-col.next   { background:#eff6ff; border-color:#bfdbfe; }
+
+.bcol-head {
+  display:flex; align-items:center; gap:10px;
+  padding-bottom:14px; border-bottom:1px solid; margin-bottom:18px;
+}
+.backlog-col.done .bcol-head { border-color:#dcfce7; }
+.backlog-col.miss .bcol-head { border-color:#fef3c7; }
+.backlog-col.next .bcol-head { border-color:#dbeafe; }
+
+.bcol-icon { font-size:20px; }
+.bcol-title { font-size:12px; font-weight:800; text-transform:uppercase; letter-spacing:1px; }
+.backlog-col.done .bcol-title { color:#16a34a; }
+.backlog-col.miss .bcol-title { color:#d97706; }
+.backlog-col.next .bcol-title { color:#2563eb; }
+
+.bcol-items { display:flex; flex-direction:column; gap:10px; }
+.bcol-item {
+  display:flex; align-items:flex-start; gap:9px;
+  font-size:12.5px; line-height:1.45;
+}
+.backlog-col.done .bcol-item { color:#14532d; }
+.backlog-col.miss .bcol-item { color:#92400e; }
+.backlog-col.next .bcol-item { color:#1e40af; }
+
+.bcol-dot {
+  width:7px; height:7px; border-radius:50%;
+  flex-shrink:0; margin-top:5px;
+}
+.backlog-col.done .bcol-dot { background:#4ade80; }
+.backlog-col.miss .bcol-dot { background:#fbbf24; }
+.backlog-col.next .bcol-dot { background:#60a5fa; }
+
+/* ═══════════════════════════════════
+   SLIDE 6 — CIERRE
+═══════════════════════════════════ */
+#s5-flow { background:#f8fafc; }
+#s6-back { background:#f8fafc; }
+#s7 { background:#060d1a; padding:0; justify-content:center; align-items:center; }
+
+.s6-bg {
+  position:absolute; inset:0;
+  background:
+    radial-gradient(ellipse 60% 60% at 30% 40%, rgba(37,99,235,0.2) 0%, transparent 65%),
+    radial-gradient(ellipse 40% 40% at 75% 70%, rgba(6,182,212,0.1) 0%, transparent 60%);
+  pointer-events:none;
+}
+
+.s6-content {
+  position:relative; z-index:1;
+  display:grid; grid-template-columns:1fr 1fr;
+  width:100%; height:100%; padding:60px 72px;
+  align-items:center; gap:60px;
+}
+
+.s6-left { display:flex; flex-direction:column; }
+
+.s6-tag {
+  display:inline-flex; align-items:center; gap:8px;
+  background:rgba(59,130,246,0.1); border:1px solid rgba(59,130,246,0.25);
+  color:#60a5fa; font-size:10px; font-weight:700; letter-spacing:1.5px;
+  text-transform:uppercase; padding:5px 14px; border-radius:20px;
+  width:fit-content; margin-bottom:24px;
+}
+
+.s6-title {
+  font-family:'Fraunces', serif;
+  font-size:clamp(54px, 7vw, 96px);
+  font-weight:900; line-height:0.9;
+  color:white; letter-spacing:-4px; margin-bottom:24px;
+}
+
+.s6-sub {
+  font-size:14px; color:#475569; margin-bottom:32px; line-height:1.6;
+}
+
+.s6-repo {
+  display:inline-flex; align-items:center; gap:9px;
+  background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.1);
+  border-radius:10px; padding:11px 18px;
+  font-family:'JetBrains Mono', monospace;
+  font-size:11px; color:#60a5fa; width:fit-content;
+  transition:all 0.2s;
+}
+.s6-repo:hover { background:rgba(59,130,246,0.08); border-color:rgba(59,130,246,0.3); }
+
+.s6-right { display:flex; flex-direction:column; gap:12px; }
+
+.win-card {
+  background:rgba(255,255,255,0.03);
+  border:1px solid rgba(255,255,255,0.07);
+  border-radius:14px; padding:18px 20px;
+  display:flex; align-items:flex-start; gap:14px;
+  transition:all 0.2s;
+}
+.win-card:hover { background:rgba(255,255,255,0.06); transform:translateX(4px); }
+
+.win-icon {
+  font-size:22px; width:42px; height:42px;
+  border-radius:11px; background:rgba(59,130,246,0.1);
+  border:1px solid rgba(59,130,246,0.2);
+  display:flex; align-items:center; justify-content:center;
+  flex-shrink:0;
+}
+
+.win-title { font-size:13px; font-weight:600; color:#e2e8f0; margin-bottom:3px; }
+.win-desc  { font-size:11px; color:#475569; line-height:1.4; }
+
+.s6-footer {
+  position:absolute; bottom:0; left:0; right:0;
+  background:rgba(255,255,255,0.02); border-top:1px solid rgba(255,255,255,0.05);
+  padding:14px 72px;
+  display:flex; justify-content:space-between; align-items:center;
+}
+
+.s6-footer-name {
+  font-size:10px; color:#334155; font-weight:600;
+  text-transform:uppercase; letter-spacing:0.8px;
+}
+
+/* ── ENTER ANIMATIONS ── */
+.slide.active .anim { animation:slideUp 0.6s cubic-bezier(.22,1,.36,1) both; }
+.slide.active .anim-1  { animation-delay:0.05s; }
+.slide.active .anim-2  { animation-delay:0.15s; }
+.slide.active .anim-3  { animation-delay:0.25s; }
+.slide.active .anim-4  { animation-delay:0.35s; }
+.slide.active .anim-5  { animation-delay:0.45s; }
+.slide.active .anim-6  { animation-delay:0.55s; }
+
+@keyframes slideUp {
+  from { opacity:0; transform:translateY(20px); }
+  to   { opacity:1; transform:translateY(0); }
+}
+</style>
+</head>
+<body>
+
+<div class="deck">
+
+  <!-- ══════════ SLIDE 1 — PORTADA ══════════ -->
+  <div class="slide active" id="s1">
+    <div class="s1-bg"></div>
+    <div class="s1-grid"></div>
+    <div class="s1-content">
+      <div class="s1-left">
+        <div class="s1-badge anim anim-1">
+          <span class="s1-badge-dot"></span>
+          MVP · Release 1 · 2026
+        </div>
+        <h1 class="s1-title anim anim-2">
+          Gestión<br>de Citas<br><span class="accent">Inteligente</span>
+        </h1>
+        <p class="s1-desc anim anim-3">
+          Sistema basado en microservicios para organizar, digitalizar y escalar la gestión de citas médicas.
+        </p>
+        <div class="s1-pills anim anim-4">
+          <span class="pill">Spring Boot</span>
+          <span class="pill">PostgreSQL</span>
+          <span class="pill">Docker</span>
+          <span class="pill">API Gateway</span>
+          <span class="pill">GitHub</span>
+        </div>
+        <div class="s1-team-label anim anim-5">Equipo de desarrollo</div>
+      </div>
+      <div class="s1-right">
+        <div class="member-card c1 anim anim-2">
+          <div class="member-avatar">YS</div>
+          <div>
+            <div class="member-name">Yeison Scarpeta Díaz</div>
+            <div class="member-role">Líder · Git</div>
+          </div>
+        </div>
+        <div class="member-card c2 anim anim-3">
+          <div class="member-avatar">AC</div>
+          <div>
+            <div class="member-name">Andrea Cortés Ramírez</div>
+            <div class="member-role">Backend</div>
+          </div>
+        </div>
+        <div class="member-card c3 anim anim-4">
+          <div class="member-avatar">NG</div>
+          <div>
+            <div class="member-name">Nicolás Álvarez Aguirre</div>
+            <div class="member-role">Documentación</div>
+          </div>
+        </div>
+        <div class="member-card c4 anim anim-5">
+          <div class="member-avatar">DS</div>
+          <div>
+            <div class="member-name">Dayana Méndez Perafán</div>
+            <div class="member-role">Frontend</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════ SLIDE 2 — PROBLEMA ══════════ -->
+  <div class="slide" id="s2">
+    <div class="light-slide">
+      <div class="slide-topbar anim anim-1">
+        <div class="slide-num-badge">
+          <div class="snb-num">01</div>
+          <div class="snb-label">El Problema</div>
+        </div>
+        <div class="slide-speaker">YS — 0:00 a 2:00 min</div>
+      </div>
+      <h2 class="slide-headline anim anim-2">¿Qué pasa hoy<br>sin nuestro <span class="red">sistema?</span></h2>
+      <div class="s2-grid">
+        <div class="scenario-box anim anim-3">
+          <div class="scenario-head">
+            <div class="scenario-icon">🏥</div>
+            <div class="scenario-title">Escenario real — Consultorio médico</div>
+          </div>
+          <div class="scenario-items">
+            <div class="scenario-item"><div class="s-dot"></div>Un consultorio recibe llamadas todo el día para agendar citas.</div>
+            <div class="scenario-item"><div class="s-dot"></div>La recepcionista anota en papel o cuaderno.</div>
+            <div class="scenario-item"><div class="s-dot"></div>El paciente llama… y nadie contesta.</div>
+            <div class="scenario-item"><div class="s-dot"></div>Se generan citas duplicadas en el mismo horario.</div>
+            <div class="scenario-item"><div class="s-dot"></div>El paciente no sabe si quedó agendado.</div>
+            <div class="scenario-item"><div class="s-dot"></div>No hay historial de ningún paciente.</div>
+          </div>
+        </div>
+        <div class="impact-grid anim anim-4">
+          <div class="impact-card">
+            <span class="ic-icon">📞</span>
+            <div class="ic-name">Sin sistema</div>
+            <div class="ic-desc">Citas por llamadas y mensajes sin registro ni control alguno.</div>
+          </div>
+          <div class="impact-card">
+            <span class="ic-icon">📋</span>
+            <div class="ic-name">Proceso manual</div>
+            <div class="ic-desc">Agendas en papel con errores y duplicación constante.</div>
+          </div>
+          <div class="impact-card">
+            <span class="ic-icon">⏳</span>
+            <div class="ic-name">Esperas y pérdidas</div>
+            <div class="ic-desc">Turnos perdidos, clientes frustrados, cero trazabilidad.</div>
+          </div>
+          <div class="impact-card">
+            <span class="ic-icon">📉</span>
+            <div class="ic-name">No escala</div>
+            <div class="ic-desc">Imposible crecer con un sistema tan desorganizado.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════ SLIDE 3 — SOLUCIÓN ══════════ -->
+  <div class="slide" id="s3">
+    <div class="light-slide">
+      <div class="slide-topbar anim anim-1">
+        <div class="slide-num-badge">
+          <div class="snb-num">02</div>
+          <div class="snb-label">La Solución</div>
+        </div>
+        <div class="slide-speaker">NG — 4:00 a 6:00 min</div>
+      </div>
+      <h2 class="slide-headline anim anim-2">Antes <span style="color:#94a3b8;font-weight:300;">vs</span> <span class="blue">Ahora</span></h2>
+      <div class="s3-cols anim anim-3">
+        <div class="antes-col">
+          <div class="col-head">
+            <div class="col-head-icon">❌</div>
+            <div class="col-head-title">Antes</div>
+          </div>
+          <div class="col-items">
+            <div class="col-item"><div class="ci-icon">✕</div>Llamadas que nadie contesta</div>
+            <div class="col-item"><div class="ci-icon">✕</div>Papel y cuadernos para anotar</div>
+            <div class="col-item"><div class="ci-icon">✕</div>Citas duplicadas sin control</div>
+            <div class="col-item"><div class="ci-icon">✕</div>Paciente no sabe si quedó</div>
+            <div class="col-item"><div class="ci-icon">✕</div>Sin historial de ningún paciente</div>
+          </div>
+        </div>
+        <div class="arrow-mid">
+          <div class="arrow-circle">→</div>
+        </div>
+        <div class="ahora-col">
+          <div class="col-head">
+            <div class="col-head-icon">✅</div>
+            <div class="col-head-title">Ahora</div>
+          </div>
+          <div class="col-items">
+            <div class="col-item"><div class="ci-icon">✓</div>Paciente agenda desde su celular</div>
+            <div class="col-item"><div class="ci-icon">✓</div>Todo queda guardado automático</div>
+            <div class="col-item"><div class="ci-icon">✓</div>Horarios sin cruce ni error</div>
+            <div class="col-item"><div class="ci-icon">✓</div>Confirmación instantánea</div>
+            <div class="col-item"><div class="ci-icon">✓</div>Historial completo de pacientes</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════ SLIDE 4 — ARQUITECTURA ══════════ -->
+  <div class="slide" id="s4">
+    <div style="background:#0d1117;height:100%;display:flex;flex-direction:column;padding:36px 48px;position:relative;overflow-y:auto;overflow-x:hidden;">
+      <!-- bg glow -->
+      <div style="position:absolute;inset:0;pointer-events:none;
+        background:radial-gradient(ellipse 50% 60% at 20% 50%,rgba(37,99,235,0.13) 0%,transparent 65%),
+                  radial-gradient(ellipse 40% 40% at 80% 20%,rgba(245,158,11,0.08) 0%,transparent 60%),
+                  radial-gradient(ellipse 30% 40% at 75% 80%,rgba(34,197,94,0.07) 0%,transparent 60%);"></div>
+
+      <!-- topbar -->
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:28px;position:relative;z-index:1;" class="anim anim-1">
+        <div style="display:flex;align-items:center;gap:12px;">
+          <div style="width:34px;height:34px;border-radius:9px;background:#1e3a8a;color:white;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;">03</div>
+          <span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:#64748b;">Arquitectura del Sistema</span>
+        </div>
+        <span style="font-size:11px;color:#475569;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:20px;padding:5px 14px;font-family:'JetBrains Mono',monospace;">YS — Arquitectura</span>
+      </div>
+
+      <!-- body: left flow + right panels -->
+      <div style="display:grid;grid-template-columns:260px 1fr;gap:28px;flex:1;position:relative;z-index:1;min-height:0;">
+
+        <!-- LEFT: vertical flow -->
+        <div style="display:flex;flex-direction:column;" class="anim anim-2">
+          <div style="font-size:9px;font-weight:800;color:#334155;text-transform:uppercase;letter-spacing:2px;margin-bottom:14px;">Flujo de llamada</div>
+
+          <!-- Cliente -->
+          <div style="background:rgba(100,116,139,0.12);border:1px solid rgba(100,116,139,0.3);border-radius:14px;padding:14px 16px;text-align:center;">
+            <div style="font-size:22px;margin-bottom:6px;">💻</div>
+            <div style="font-size:13px;font-weight:700;color:#cbd5e1;">Cliente</div>
+            <div style="font-size:10px;color:#64748b;font-family:'JetBrains Mono',monospace;margin-top:2px;">URL / Frontend</div>
+          </div>
+
+          <!-- arrow -->
+          <div style="display:flex;flex-direction:column;align-items:center;padding:6px 0;gap:2px;">
+            <div style="width:1px;height:14px;background:rgba(255,255,255,0.15);"></div>
+            <div style="font-size:9px;color:#475569;font-weight:700;letter-spacing:0.5px;text-transform:uppercase;">HTTP Request</div>
+            <div style="width:1px;height:14px;background:rgba(255,255,255,0.15);"></div>
+            <div style="font-size:10px;color:#94a3b8;">↓</div>
+          </div>
+
+          <!-- API Gateway -->
+          <div style="background:rgba(245,158,11,0.15);border:2px solid rgba(245,158,11,0.6);border-radius:14px;padding:14px 16px;text-align:center;box-shadow:0 0 24px rgba(245,158,11,0.12);">
+            <div style="font-size:22px;margin-bottom:6px;">🔀</div>
+            <div style="font-size:13px;font-weight:800;color:#fbbf24;">API Gateway</div>
+            <div style="font-size:10px;color:#d97706;font-family:'JetBrains Mono',monospace;margin-top:2px;">:8080 → enruta peticiones</div>
+            <div style="font-size:10px;color:#92400e;margin-top:6px;line-height:1.4;">Punto único de entrada. Accede para crear turnos y rutea a cada microservicio.</div>
+          </div>
+
+          <!-- arrow -->
+          <div style="display:flex;flex-direction:column;align-items:center;padding:6px 0;gap:2px;">
+            <div style="width:1px;height:14px;background:rgba(255,255,255,0.15);"></div>
+            <div style="font-size:9px;color:#475569;font-weight:700;letter-spacing:0.5px;text-transform:uppercase;">Route /turnos/**</div>
+            <div style="width:1px;height:14px;background:rgba(255,255,255,0.15);"></div>
+            <div style="font-size:10px;color:#94a3b8;">↓</div>
+          </div>
+
+          <!-- turnos-service -->
+          <div style="background:rgba(37,99,235,0.15);border:2px solid rgba(37,99,235,0.5);border-radius:14px;padding:14px 16px;text-align:center;box-shadow:0 0 24px rgba(37,99,235,0.1);">
+            <div style="font-size:22px;margin-bottom:6px;">☕</div>
+            <div style="font-size:13px;font-weight:800;color:#93c5fd;">turnos-service</div>
+            <div style="font-size:10px;color:#60a5fa;font-family:'JetBrains Mono',monospace;margin-top:2px;">Spring Boot · Java 17 · :8081</div>
+            <div style="font-size:10px;color:#3b82f6;margin-top:6px;line-height:1.4;">Lógica de negocio: solicitar, consultar y gestionar turnos.</div>
+          </div>
+
+          <!-- arrow -->
+          <div style="display:flex;flex-direction:column;align-items:center;padding:6px 0;gap:2px;">
+            <div style="width:1px;height:14px;background:rgba(255,255,255,0.15);"></div>
+            <div style="font-size:9px;color:#475569;font-weight:700;letter-spacing:0.5px;text-transform:uppercase;">JPA / Hibernate</div>
+            <div style="width:1px;height:14px;background:rgba(255,255,255,0.15);"></div>
+            <div style="font-size:10px;color:#94a3b8;">↓</div>
+          </div>
+
+          <!-- PostgreSQL -->
+          <div style="background:rgba(34,197,94,0.12);border:2px solid rgba(34,197,94,0.45);border-radius:14px;padding:14px 16px;text-align:center;box-shadow:0 0 24px rgba(34,197,94,0.08);">
+            <div style="font-size:22px;margin-bottom:6px;">🐘</div>
+            <div style="font-size:13px;font-weight:800;color:#86efac;">PostgreSQL</div>
+            <div style="font-size:10px;color:#4ade80;font-family:'JetBrains Mono',monospace;margin-top:2px;">:5432 · BD única compartida</div>
+            <div style="font-size:10px;color:#16a34a;margin-top:6px;line-height:1.4;">Una sola base de datos para todos los microservicios.</div>
+          </div>
+        </div>
+
+        <!-- RIGHT: decisions + layers -->
+        <div style="display:flex;flex-direction:column;gap:16px;min-height:0;overflow:hidden;" class="anim anim-3">
+
+          <!-- Decisions -->
+          <div>
+            <div style="font-size:9px;font-weight:800;color:#f59e0b;text-transform:uppercase;letter-spacing:2px;margin-bottom:10px;">⚡ Decisiones de arquitectura</div>
+            <div style="display:flex;flex-direction:column;gap:7px;">
+              <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:10px;padding:10px 14px;display:flex;gap:12px;align-items:flex-start;transition:all 0.2s;" onmouseover="this.style.background='rgba(245,158,11,0.07)'" onmouseout="this.style.background='rgba(255,255,255,0.03)'">
+                <span style="font-size:16px;flex-shrink:0;">🔵</span>
+                <div><div style="font-size:12px;font-weight:700;color:#e2e8f0;margin-bottom:2px;">API Gateway como único punto de entrada</div><div style="font-size:11px;color:#64748b;line-height:1.4;">El cliente nunca llama directo al microservicio. El Gateway centraliza auth, logging y routing.</div></div>
+              </div>
+              <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:10px;padding:10px 14px;display:flex;gap:12px;align-items:flex-start;transition:all 0.2s;" onmouseover="this.style.background='rgba(37,99,235,0.07)'" onmouseout="this.style.background='rgba(255,255,255,0.03)'">
+                <span style="font-size:16px;flex-shrink:0;">🔗</span>
+                <div><div style="font-size:12px;font-weight:700;color:#e2e8f0;margin-bottom:2px;">Microservicios desacoplados</div><div style="font-size:11px;color:#64748b;line-height:1.4;">Cada servicio tiene su propio proceso. Comparten una única BD PostgreSQL centralizada.</div></div>
+              </div>
+              <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:10px;padding:10px 14px;display:flex;gap:12px;align-items:flex-start;transition:all 0.2s;" onmouseover="this.style.background='rgba(6,182,212,0.07)'" onmouseout="this.style.background='rgba(255,255,255,0.03)'">
+                <span style="font-size:16px;flex-shrink:0;">🐳</span>
+                <div><div style="font-size:12px;font-weight:700;color:#e2e8f0;margin-bottom:2px;">Docker Compose para orquestación local</div><div style="font-size:11px;color:#64748b;line-height:1.4;">Un solo comando levanta todo: Gateway + Turnos Service + PostgreSQL.</div></div>
+              </div>
+              <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:10px;padding:10px 14px;display:flex;gap:12px;align-items:flex-start;transition:all 0.2s;" onmouseover="this.style.background='rgba(139,92,246,0.07)'" onmouseout="this.style.background='rgba(255,255,255,0.03)'">
+                <span style="font-size:16px;flex-shrink:0;">🧱</span>
+                <div><div style="font-size:12px;font-weight:700;color:#e2e8f0;margin-bottom:2px;">Arquitectura en capas dentro del servicio</div><div style="font-size:11px;color:#64748b;line-height:1.4;">Controller → Service → Repository → BD. Separación clara de responsabilidades.</div></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Internal layers -->
+          <div>
+            <div style="font-size:9px;font-weight:800;color:#06b6d4;text-transform:uppercase;letter-spacing:2px;margin-bottom:10px;">🔲 Capas internas del turnos-service</div>
+            <div style="display:grid;grid-template-columns:52px 1fr;gap:0;">
+
+              <div style="display:contents;">
+                <div style="font-size:10px;color:#475569;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;display:flex;align-items:center;justify-content:flex-end;padding-right:12px;padding-bottom:8px;">HTTP</div>
+                <div style="background:rgba(37,99,235,0.15);border:1px solid rgba(37,99,235,0.3);border-radius:10px;padding:9px 14px;margin-bottom:6px;display:flex;gap:10px;align-items:center;">
+                  <span style="font-size:14px;">🌐</span>
+                  <div><div style="font-size:12px;font-weight:700;color:#93c5fd;">Controller</div><div style="font-size:10.5px;color:#60a5fa;">Endpoints REST · recibe peticiones HTTP</div></div>
+                </div>
+              </div>
+
+              <div style="display:contents;">
+                <div style="font-size:10px;color:#475569;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;display:flex;align-items:center;justify-content:flex-end;padding-right:12px;padding-bottom:8px;">Lógica</div>
+                <div style="background:rgba(139,92,246,0.15);border:1px solid rgba(139,92,246,0.3);border-radius:10px;padding:9px 14px;margin-bottom:6px;display:flex;gap:10px;align-items:center;">
+                  <span style="font-size:14px;">⚙️</span>
+                  <div><div style="font-size:12px;font-weight:700;color:#c4b5fd;">Service</div><div style="font-size:10.5px;color:#a78bfa;">Reglas de negocio · validaciones · gestión de turnos</div></div>
+                </div>
+              </div>
+
+              <div style="display:contents;">
+                <div style="font-size:10px;color:#475569;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;display:flex;align-items:center;justify-content:flex-end;padding-right:12px;padding-bottom:8px;">Datos</div>
+                <div style="background:rgba(6,182,212,0.12);border:1px solid rgba(6,182,212,0.3);border-radius:10px;padding:9px 14px;margin-bottom:6px;display:flex;gap:10px;align-items:center;">
+                  <span style="font-size:14px;">🗃️</span>
+                  <div><div style="font-size:12px;font-weight:700;color:#67e8f9;">Repository</div><div style="font-size:10.5px;color:#22d3ee;">JPA · consultas SQL · acceso a PostgreSQL</div></div>
+                </div>
+              </div>
+
+              <div style="display:contents;">
+                <div style="font-size:10px;color:#475569;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;display:flex;align-items:center;justify-content:flex-end;padding-right:12px;">BD</div>
+                <div style="background:rgba(34,197,94,0.12);border:1px solid rgba(34,197,94,0.3);border-radius:10px;padding:9px 14px;display:flex;gap:10px;align-items:center;">
+                  <span style="font-size:14px;">🐘</span>
+                  <div><div style="font-size:12px;font-weight:700;color:#86efac;">PostgreSQL</div><div style="font-size:10.5px;color:#4ade80;">Persistencia · tabla turnos</div></div>
+                </div>
+              </div>
+
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════ SLIDE 5 — FLUJO ══════════ -->
+  <div class="slide" id="s5-flow">
+    <div class="light-slide">
+      <div class="slide-topbar anim anim-1">
+        <div class="slide-num-badge">
+          <div class="snb-num">04</div>
+          <div class="snb-label">Cómo Funciona</div>
+        </div>
+        <div class="slide-speaker">AC — 2:00 a 4:00 min</div>
+      </div>
+      <h2 class="slide-headline anim anim-2">El proceso <span class="blue">paso a paso</span></h2>
+      <div class="flow-wrap anim anim-3">
+        <div class="flow-steps">
+          <div class="fstep">
+            <div class="fstep-ring">👤<div class="fstep-badge">1</div></div>
+            <div class="fstep-name">Usuario ingresa</div>
+            <div class="fstep-desc">Accede a la plataforma con sus datos</div>
+          </div>
+          <div class="fstep">
+            <div class="fstep-ring">🔍<div class="fstep-badge">2</div></div>
+            <div class="fstep-name">Elige especialidad</div>
+            <div class="fstep-desc">Selecciona el tipo de servicio o atención</div>
+          </div>
+          <div class="fstep">
+            <div class="fstep-ring">🧑‍⚕️<div class="fstep-badge">3</div></div>
+            <div class="fstep-name">Selecciona profesional</div>
+            <div class="fstep-desc">Elige el doctor o responsable disponible</div>
+          </div>
+          <div class="fstep">
+            <div class="fstep-ring">📅<div class="fstep-badge">4</div></div>
+            <div class="fstep-name">Escoge fecha y hora</div>
+            <div class="fstep-desc">Ve horarios disponibles en tiempo real</div>
+          </div>
+          <div class="fstep">
+            <div class="fstep-ring done">✅<div class="fstep-badge" style="background:#16a34a;">5</div></div>
+            <div class="fstep-name">Cita confirmada</div>
+            <div class="fstep-desc">Recibe confirmación y recordatorio automático</div>
+          </div>
+        </div>
+        <div class="flow-tagline">
+          Sin llamadas <span>·</span> Sin papel <span>·</span> Sin errores <span>·</span> Paciente confirmado en segundos
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════ SLIDE 6 — BACKLOG ══════════ -->
+  <div class="slide" id="s6-back">
+    <div class="light-slide">
+      <div class="slide-topbar anim anim-1">
+        <div class="slide-num-badge">
+          <div class="snb-num">05</div>
+          <div class="snb-label">Backlog del Sprint</div>
+        </div>
+        <div class="slide-speaker">YS — 6:00 a 8:00 min</div>
+      </div>
+      <h2 class="slide-headline anim anim-2">¿Qué hicimos,<br>qué faltó y <span class="blue">qué sigue?</span></h2>
+      <div class="backlog-grid anim anim-3">
+        <div class="backlog-col done">
+          <div class="bcol-head">
+            <div class="bcol-icon">✅</div>
+            <div class="bcol-title">Qué se hizo</div>
+          </div>
+          <div class="bcol-items">
+            <div class="bcol-item"><div class="bcol-dot"></div>Se identificó el problema de desorganización en la gestión de citas.</div>
+            <div class="bcol-item"><div class="bcol-dot"></div>Se diseñó una solución digital para organizar y gestionar turnos.</div>
+            <div class="bcol-item"><div class="bcol-dot"></div>Se desarrolló una plataforma donde los usuarios pueden solicitar y consultar sus citas.</div>
+            <div class="bcol-item"><div class="bcol-dot"></div>Se implementó un sistema básico para registrar y visualizar los turnos solicitados.</div>
+          </div>
+        </div>
+        <div class="backlog-col miss">
+          <div class="bcol-head">
+            <div class="bcol-icon">⚠️</div>
+            <div class="bcol-title">Qué faltó</div>
+          </div>
+          <div class="bcol-items">
+            <div class="bcol-item"><div class="bcol-dot"></div>Implementar un módulo más completo de administración de usuarios y citas.</div>
+            <div class="bcol-item"><div class="bcol-dot"></div>Agregar más opciones para modificar o cancelar citas.</div>
+            <div class="bcol-item"><div class="bcol-dot"></div>Mejorar algunos aspectos de organización y visualización de la información.</div>
+          </div>
+        </div>
+        <div class="backlog-col next">
+          <div class="bcol-head">
+            <div class="bcol-icon">🚀</div>
+            <div class="bcol-title">Qué sigue</div>
+          </div>
+          <div class="bcol-items">
+            <div class="bcol-item"><div class="bcol-dot"></div>Ampliar las funciones de gestión de citas para mayor control y organización.</div>
+            <div class="bcol-item"><div class="bcol-dot"></div>Incorporar mejoras que faciliten la experiencia del usuario.</div>
+            <div class="bcol-item"><div class="bcol-dot"></div>Desarrollar nuevas opciones que permitan una administración más completa del sistema.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════ SLIDE 7 — GITHUB / MVP ══════════ -->
+  <div class="slide" id="s7-github" style="background:#0d1117;overflow-y:auto;">
+    <div style="min-height:100%;padding:40px 56px;position:relative;display:flex;flex-direction:column;gap:24px;">
+
+      <!-- bg glow -->
+      <div style="position:absolute;inset:0;pointer-events:none;
+        background:radial-gradient(ellipse 50% 50% at 80% 20%,rgba(37,99,235,0.1) 0%,transparent 60%),
+                  radial-gradient(ellipse 40% 40% at 10% 80%,rgba(34,197,94,0.07) 0%,transparent 60%);"></div>
+
+      <!-- header -->
+      <div style="text-align:center;position:relative;z-index:1;" class="anim anim-1">
+        <div style="display:inline-flex;align-items:center;gap:7px;background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.25);color:#4ade80;font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;padding:5px 14px;border-radius:20px;margin-bottom:16px;">
+          🟢 GITHUB
+        </div>
+        <h2 style="font-family:'Fraunces',serif;font-size:clamp(26px,3.5vw,42px);font-weight:900;letter-spacing:-1.5px;color:#f1f5f9;margin-bottom:8px;">Repositorio y <span style="color:#3b82f6;font-style:italic;">estado del MVP</span></h2>
+        <p style="font-size:13px;color:#475569;">Control de versiones, trabajo colaborativo en equipo de 4 y progreso actual del proyecto.</p>
+      </div>
+
+      <!-- top grid: branches + métricas -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;position:relative;z-index:1;" class="anim anim-2">
+
+        <!-- Branches -->
+        <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:16px;padding:20px 22px;">
+          <div style="font-size:9px;font-weight:800;color:#64748b;text-transform:uppercase;letter-spacing:2px;margin-bottom:14px;">🌿 Branches</div>
+          <div style="display:flex;flex-direction:column;gap:8px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:rgba(34,197,94,0.08);border:1px solid rgba(34,197,94,0.2);border-radius:8px;">
+              <span style="font-size:12px;font-weight:700;color:#4ade80;font-family:'JetBrains Mono',monospace;">● main</span>
+              <span style="font-size:10px;color:#475569;">producción estable</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:rgba(37,99,235,0.08);border:1px solid rgba(37,99,235,0.2);border-radius:8px;">
+              <span style="font-size:12px;font-weight:600;color:#60a5fa;font-family:'JetBrains Mono',monospace;">● develop</span>
+              <span style="font-size:10px;color:#475569;">integración</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:8px;">
+              <span style="font-size:12px;color:#a78bfa;font-family:'JetBrains Mono',monospace;">● feature/backend-login</span>
+              <span style="font-size:10px;color:#4ade80;">✓ mergeado</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:8px;">
+              <span style="font-size:12px;color:#a78bfa;font-family:'JetBrains Mono',monospace;">● feature/docker-config</span>
+              <span style="font-size:10px;color:#4ade80;">✓ mergeado</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:8px;">
+              <span style="font-size:12px;color:#a78bfa;font-family:'JetBrains Mono',monospace;">● feature/frontend-login</span>
+              <span style="font-size:10px;color:#4ade80;">✓ mergeado</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:8px;">
+              <span style="font-size:12px;color:#67e8f9;font-family:'JetBrains Mono',monospace;">● qa</span>
+              <span style="font-size:10px;color:#475569;">pruebas</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.2);border-radius:8px;">
+              <span style="font-size:12px;color:#fbbf24;font-family:'JetBrains Mono',monospace;">● relase.1</span>
+              <span style="font-size:10px;color:#f59e0b;">release estable</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Métricas -->
+        <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:16px;padding:20px 22px;">
+          <div style="font-size:9px;font-weight:800;color:#64748b;text-transform:uppercase;letter-spacing:2px;margin-bottom:14px;">📊 Métricas del Repo</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+            <div style="background:rgba(37,99,235,0.1);border:1px solid rgba(37,99,235,0.2);border-radius:12px;padding:16px;display:flex;align-items:center;gap:10px;">
+              <span style="font-size:20px;">🔀</span>
+              <div><div style="font-size:22px;font-weight:900;color:#93c5fd;font-family:'Fraunces',serif;">3+</div><div style="font-size:10px;color:#64748b;">PRs mergeados</div></div>
+            </div>
+            <div style="background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.2);border-radius:12px;padding:16px;display:flex;align-items:center;gap:10px;">
+              <span style="font-size:20px;">🎯</span>
+              <div><div style="font-size:22px;font-weight:900;color:#fca5a5;font-family:'Fraunces',serif;">5+</div><div style="font-size:10px;color:#64748b;">Issues cerrados</div></div>
+            </div>
+            <div style="background:rgba(139,92,246,0.1);border:1px solid rgba(139,92,246,0.2);border-radius:12px;padding:16px;display:flex;align-items:center;gap:10px;">
+              <span style="font-size:20px;">👥</span>
+              <div><div style="font-size:22px;font-weight:900;color:#c4b5fd;font-family:'Fraunces',serif;">4</div><div style="font-size:10px;color:#64748b;">Colaboradores</div></div>
+            </div>
+            <div style="background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.2);border-radius:12px;padding:16px;display:flex;align-items:center;gap:10px;">
+              <span style="font-size:20px;">🌿</span>
+              <div><div style="font-size:22px;font-weight:900;color:#86efac;font-family:'Fraunces',serif;">7</div><div style="font-size:10px;color:#64748b;">Branches</div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Estado del MVP -->
+      <div style="position:relative;z-index:1;" class="anim anim-3">
+        <div style="font-size:9px;font-weight:800;color:#64748b;text-transform:uppercase;letter-spacing:2px;margin-bottom:12px;">✅ Estado del MVP</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+          <div style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:rgba(34,197,94,0.07);border:1px solid rgba(34,197,94,0.18);border-radius:10px;">
+            <span style="color:#4ade80;font-size:13px;">✓</span>
+            <span style="font-size:12px;color:#cbd5e1;">Microservicio turnos-service creado</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:rgba(34,197,94,0.07);border:1px solid rgba(34,197,94,0.18);border-radius:10px;">
+            <span style="color:#4ade80;font-size:13px;">✓</span>
+            <span style="font-size:12px;color:#cbd5e1;">Arquitectura en capas implementada</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:rgba(34,197,94,0.07);border:1px solid rgba(34,197,94,0.18);border-radius:10px;">
+            <span style="color:#4ade80;font-size:13px;">✓</span>
+            <span style="font-size:12px;color:#cbd5e1;">Endpoints POST /turnos y GET /turnos</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:rgba(34,197,94,0.07);border:1px solid rgba(34,197,94,0.18);border-radius:10px;">
+            <span style="color:#4ade80;font-size:13px;">✓</span>
+            <span style="font-size:12px;color:#cbd5e1;">GET /turnos/{id} funcionando</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:rgba(245,158,11,0.07);border:1px solid rgba(245,158,11,0.18);border-radius:10px;">
+            <span style="color:#fbbf24;font-size:13px;">⏳</span>
+            <span style="font-size:12px;color:#cbd5e1;">PUT y DELETE para demo completo</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:rgba(139,92,246,0.08);border:1px solid rgba(139,92,246,0.2);border-radius:10px;">
+            <span style="color:#c4b5fd;font-size:13px;">🚀</span>
+            <span style="font-size:12px;color:#cbd5e1;">Próximo: appointments-notificaciones</span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ══════════ SLIDE 8 — CIERRE ══════════ -->
+  <div class="slide" id="s8" style="background:#060d1a;">
+    <div class="s6-bg"></div>
+    <div class="s6-content">
+      <div class="s6-left">
+        <div class="s6-tag anim anim-1">Release 1 completado</div>
+        <div class="s6-title anim anim-2">¡Gra<br>cias!</div>
+        <p class="s6-sub anim anim-3">Gestión de Citas Inteligente —<br>Microservicios · Spring Boot · PostgreSQL · Docker</p>
+        <div class="s6-repo anim anim-4">🔗 github.com/sparyock/Gestion-De-Citas-Inteligente</div>
+      </div>
+      <div class="s6-right">
+        <div class="win-card anim anim-2">
+          <div class="win-icon">👤</div>
+          <div>
+            <div class="win-title">CRUD completo de pacientes</div>
+            <div class="win-desc">Registro completo con 6 acciones funcionando</div>
+          </div>
+        </div>
+        <div class="win-card anim anim-3">
+          <div class="win-icon">🔀</div>
+          <div>
+            <div class="win-title">API Gateway activo</div>
+            <div class="win-desc">Punto único de entrada al sistema de microservicios</div>
+          </div>
+        </div>
+        <div class="win-card anim anim-4">
+          <div class="win-icon">🐳</div>
+          <div>
+            <div class="win-title">Docker listo</div>
+            <div class="win-desc">Un comando levanta todo el ambiente</div>
+          </div>
+        </div>
+        <div class="win-card anim anim-5">
+          <div class="win-icon">📂</div>
+          <div>
+            <div class="win-title">GitHub organizado</div>
+            <div class="win-desc">Ramas, PRs, Issues y Release v1.0.0</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="s6-footer">
+      <span class="s6-footer-name">YS — Yeison Scarpeta</span>
+      <span class="s6-footer-name">AC — Andrea Cortés</span>
+      <span class="s6-footer-name">NG — Nicolás Álvarez</span>
+      <span class="s6-footer-name">DS — Dayana Méndez</span>
+    </div>
+  </div>
+
+</div><!-- /deck -->
+
+<!-- NAV -->
+<div class="nav">
+  <button class="nav-btn" id="prevBtn" onclick="navigate(-1)">←</button>
+  <div class="nav-dots" id="dots"></div>
+  <button class="nav-btn" id="nextBtn" onclick="navigate(1)">→</button>
+  <div class="slide-counter" id="counter">1 / 8</div>
+</div>
+
+<div class="hint" id="hint">
+  <span class="key">←</span><span class="key">→</span> navegar
+  <span style="margin-left:4px;color:#1e293b;">·</span>
+  <span class="key">Space</span> siguiente
+</div>
+
+<script>
+  const slides = document.querySelectorAll('.slide');
+  const total  = slides.length;
+  let current  = 0;
+  let hintTimer;
+
+  // Build dots
+  const dotsEl = document.getElementById('dots');
+  for (let i = 0; i < total; i++) {
+    const d = document.createElement('div');
+    d.className = 'nav-dot' + (i === 0 ? ' active' : '');
+    d.onclick = () => goTo(i);
+    dotsEl.appendChild(d);
+  }
+
+  function goTo(idx) {
+    if (idx < 0 || idx >= total) return;
+    slides[current].classList.remove('active');
+    slides[current].classList.add('prev');
+    setTimeout(() => slides[current].classList.remove('prev'), 500);
+    current = idx;
+    slides[current].classList.add('active');
+    document.querySelectorAll('.nav-dot').forEach((d, i) =>
+      d.classList.toggle('active', i === current)
+    );
+    document.getElementById('counter').textContent = `${current + 1} / ${total}`;
+  }
+
+  function navigate(dir) { goTo(current + dir); }
+
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === ' ') { e.preventDefault(); navigate(1); }
+    if (e.key === 'ArrowLeft') navigate(-1);
+  });
+
+  // Hide hint after 5s
+  hintTimer = setTimeout(() => {
+    document.getElementById('hint').classList.add('hidden');
+  }, 5000);
+</script>
+</body>
+</html>
